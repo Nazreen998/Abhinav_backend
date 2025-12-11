@@ -1,41 +1,6 @@
 const Shop = require("../models/Shop");
 
-// ⭐ UPDATE SHOP CONTROLLER
-exports.updateShop = async (req, res) => {
-  try {
-    const shopId = req.params.shop_id;
-
-    const { shop_name, address, segment } = req.body;
-
-    const updated = await Shop.findOneAndUpdate(
-      { shop_id: shopId },
-      {
-        shop_name,
-        address,
-        segment,
-      },
-      { new: true }
-    );
-
-    if (!updated) {
-      return res.status(404).json({
-        success: false,
-        message: "Shop not found",
-      });
-    }
-
-    res.json({
-      success: true,
-      shop: updated,
-    });
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      error: err.message,
-    });
-  }
-};
-
+// ⭐ ADD SHOP
 exports.addShop = async (req, res) => {
     try {
         const {
@@ -48,9 +13,8 @@ exports.addShop = async (req, res) => {
             longitude
         } = req.body;
 
-        if (!shopName || !area) {
-            return res.status(400).json({ message: "Shop name & area needed" });
-        }
+        if (!shopName || !area)
+            return res.status(400).json({ success: false, message: "Shop name & area required" });
 
         const shopImage = req.file ? req.file.path : null;
 
@@ -63,40 +27,72 @@ exports.addShop = async (req, res) => {
             latitude,
             longitude,
             shopImage,
-            createdBy: req.user.role
+            createdBy: req.user.role,
+            isDeleted: false
         });
 
         res.json({ success: true, shop });
+
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        res.status(500).json({ success: false, error: e.message });
     }
 };
 
-exports.getAllShops = async (req, res) => {
+
+// ⭐ UPDATE SHOP (EDITS from Flutter)
+exports.updateShop = async (req, res) => {
     try {
-        const shops = await Shop.find().sort({ createdAt: -1 });
+        const id = req.params.id; // MongoDB ObjectId
+
+        const updated = await Shop.findByIdAndUpdate(
+            id,
+            {
+                shopName: req.body.shopName,
+                shopAddress: req.body.shopAddress,
+                segment: req.body.segment
+            },
+            { new: true }
+        );
+
+        if (!updated)
+            return res.status(404).json({ success: false, message: "Shop not found" });
+
+        res.json({ success: true, shop: updated });
+
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+
+// ⭐ ONLY ACTIVE SHOPS (not soft-deleted)
+exports.listShops = async (req, res) => {
+    try {
+        const shops = await Shop.find({ isDeleted: false }).sort({ createdAt: -1 });
         res.json({ success: true, shops });
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        res.status(500).json({ success: false, error: e.message });
     }
 };
 
-exports.deleteShop = async (req, res) => {
+
+// ⭐ SOFT DELETE SHOP (App only)
+exports.softDeleteShop = async (req, res) => {
     try {
         const id = req.params.id;
 
-        const deleted = await Shop.findOneAndDelete({ shop_id: id });
+        const deleted = await Shop.findByIdAndUpdate(
+            id,
+            { isDeleted: true },
+            { new: true }
+        );
 
-        if (!deleted) {
-            return res.status(404).json({
-                success: false,
-                message: "Shop not found"
-            });
-        }
+        if (!deleted)
+            return res.status(404).json({ success: false, message: "Shop not found" });
 
-        res.json({ success: true, message: "Shop deleted" });
+        res.json({ success: true, message: "Shop deleted inside app only" });
+
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        res.status(500).json({ success: false, error: e.message });
     }
 };
-
