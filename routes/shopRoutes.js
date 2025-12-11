@@ -12,6 +12,8 @@ router.post(
 );
 
 router.get("/list", auth(["master", "manager", "salesman"]), shopController.getAllShops);
+router.put("/update/:shop_id", shopController.updateShop);
+
 
 router.delete(
     "/delete/:id",
