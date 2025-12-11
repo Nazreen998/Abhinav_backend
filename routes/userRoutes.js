@@ -1,9 +1,13 @@
 const router = require("express").Router();
 const userController = require("../controllers/userController");
 const User = require("../models/User");
+const { verifyMaster } = require("../middleware/authMiddleware");
 
-// GET ALL USERS
-router.get("/all", async (req, res) => {
+// LOGIN
+router.post("/login", userController.login);
+
+// GET ALL USERS → Only for MASTER
+router.get("/all", verifyMaster, async (req, res) => {
   try {
     const users = await User.find();
     res.json({ success: true, users });
@@ -11,10 +15,5 @@ router.get("/all", async (req, res) => {
     res.status(500).json({ success: false, error: e.message });
   }
 });
-
-module.exports = router;
-
-
-router.post("/login", userController.login);
 
 module.exports = router;

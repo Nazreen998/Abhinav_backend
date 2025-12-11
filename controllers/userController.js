@@ -6,8 +6,8 @@ exports.login = async (req, res) => {
     try {
         const { phone, password } = req.body;
 
-        // ✔ your DB uses "mobile"
-        const user = await User.findOne({ phone: phone });
+        // ✔ Your DB uses "mobile", so change phone → mobile
+        const user = await User.findOne({ mobile: phone });
 
         if (!user)
             return res.status(404).json({ success: false, message: "User not found" });
@@ -23,7 +23,7 @@ exports.login = async (req, res) => {
                 name: user.name,
                 role: user.role,
                 segment: user.segment,
-                phone: user.phone
+                phone: user.mobile
             },
             process.env.JWT_SECRET,
             { expiresIn: "7d" }
