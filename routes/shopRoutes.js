@@ -3,7 +3,7 @@ const shopController = require("../controllers/shopController");
 const auth = require("../middleware/auth");
 const uploadShopImage = require("../middleware/uploadShopImage");
 
-// MASTER & MANAGER can add/delete shops
+// ADD SHOP
 router.post(
     "/add",
     auth(["master", "manager"]),
@@ -11,14 +11,21 @@ router.post(
     shopController.addShop
 );
 
-router.get("/list", auth(["master", "manager", "salesman"]), shopController.getAllShops);
-router.put("/update/:shop_id", shopController.updateShop);
+// GET ACTIVE SHOPS
+router.get(
+    "/list",
+    auth(["master", "manager", "salesman"]),
+    shopController.listShops
+);
 
+// UPDATE SHOP
+router.put("/update/:id", shopController.updateShop);
 
+// SOFT DELETE SHOP
 router.delete(
     "/delete/:id",
     auth(["master", "manager"]),
-    shopController.deleteShop
+    shopController.softDeleteShop
 );
 
 module.exports = router;
