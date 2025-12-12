@@ -57,16 +57,20 @@ exports.approve = async (req, res) => {
     const pending = await PendingShop.findById(req.params.id);
 
     if (!pending) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Pending shop not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Pending shop not found",
+      });
     }
 
-    const shopId = await generateShopId(); // 🔥 AUTO SHOP ID
+    const shopId = await generateShopId();
 
     await Shop.create({
-      shopId,
-      shopName: pending.shopName,
+      shopId: shopId,
+
+      // 🔥 VERY IMPORTANT FIX (schema expects shop_name)
+      shop_name: pending.shopName,
+
       address: pending.address,
       latitude: pending.latitude,
       longitude: pending.longitude,
@@ -74,8 +78,8 @@ exports.approve = async (req, res) => {
       segment: pending.segment,
 
       salesmanId: pending.salesmanId,
-      salesmanName: pending.createdBy, // 🔥 SALESMAN NAME
-      approvedBy: req.user.name,       // manager / master name
+      salesmanName: pending.createdBy, // salesman actual name
+      approvedBy: req.user.name,
     });
 
     pending.status = "approved";
@@ -84,7 +88,10 @@ exports.approve = async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error("APPROVE ERROR:", err);
-    res.status(500).json({ success: false, message: "Approval failed" });
+    res.status(500).json({
+      success: false,
+      message: "Approval failed",
+    });
   }
 };
 
