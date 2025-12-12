@@ -13,5 +13,6 @@ router.put("/reassign/:id", auth(["master", "manager"]), assignedController.reas
 
 // Move back to pending
 router.put("/move-back/:id", auth(["master", "manager"]), assignedController.moveBackToPending);
+router.delete("/remove", assignedController.removeAssigned);
 
 module.exports = router;

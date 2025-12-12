@@ -84,4 +84,19 @@ exports.moveBackToPending = async (req, res) => {
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
+    exports.removeAssigned = async (req, res) => {
+  try {
+    const { shop_id, user_id } = req.body;
+
+    await AssignedShop.findOneAndDelete({
+      shop_id,
+      user_id
+    });
+
+    return res.json({ success: true });
+  } catch (e) {
+    return res.status(500).json({ success: false, error: e.message });
+  }
+};
+
 };
