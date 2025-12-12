@@ -13,6 +13,7 @@ const getISTDate = () => {
 // ASSIGN SHOP
 // -------------------------------------------------
 exports.assignShop = async (req, res) => {
+     console.log("ASSIGN HIT:", req.body); 
   try {
     const { shop_name, salesman_name, segment } = req.body;
 
