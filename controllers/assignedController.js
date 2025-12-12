@@ -13,18 +13,10 @@ const getISTDate = () => {
 // ASSIGN SHOP
 // -------------------------------------------------
 exports.assignShop = async (req, res) => {
+  console.log("✅ ASSIGN HIT BODY:", req.body);
+  console.log("✅ USER:", req.user);
+
   try {
-    console.log("🔥 ASSIGN HIT");
-    console.log("BODY =>", req.body);
-    console.log("USER =>", req.user);
-
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: "User not authenticated",
-      });
-    }
-
     const { shop_name, salesman_name, segment } = req.body;
 
     if (!shop_name || !salesman_name || !segment) {
@@ -35,9 +27,7 @@ exports.assignShop = async (req, res) => {
     }
 
     const exists = await AssignedShop.findOne({ shop_name, salesman_name });
-    if (exists) {
-      return res.json({ success: true });
-    }
+    if (exists) return res.json({ success: true });
 
     const last = await AssignedShop.find({ salesman_name })
       .sort({ sequence: -1 })
@@ -45,7 +35,7 @@ exports.assignShop = async (req, res) => {
 
     const nextSeq = last.length ? last[0].sequence + 1 : 1;
 
-    const doc = await AssignedShop.create({
+    const saved = await AssignedShop.create({
       shop_name,
       salesman_name,
       segment,
@@ -54,11 +44,11 @@ exports.assignShop = async (req, res) => {
       assigned_by_role: req.user.role,
     });
 
-    console.log("✅ SAVED =>", doc);
+    console.log("✅ SAVED IN DB:", saved);
 
     res.json({ success: true });
   } catch (e) {
-    console.error("❌ ASSIGN ERROR =>", e);
+    console.error("❌ ASSIGN ERROR:", e);
     res.status(500).json({ success: false, error: e.message });
   }
 };

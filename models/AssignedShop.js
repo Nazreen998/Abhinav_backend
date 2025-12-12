@@ -3,27 +3,21 @@ const mongoose = require("mongoose");
 const assignedShopSchema = new mongoose.Schema(
   {
     salesman_name: { type: String, required: true },
-    salesman_segment: { type: String, required: true },
-
     shop_name: { type: String, required: true },
-    shop_segment: { type: String, required: true },
+
+    // ✅ ONLY ONE SEGMENT FIELD
+    segment: { type: String, required: true },
 
     sequence: { type: Number, required: true },
 
     assigned_by: { type: String, required: true },
-
-    status: {
+    assigned_by_role: {
       type: String,
-      enum: ["pending", "completed"],
-      default: "pending",
+      enum: ["master", "manager"],
+      required: true,
     },
   },
-  {
-    timestamps: {
-      createdAt: "assigned_at",
-      updatedAt: false,
-    },
-  }
+  { timestamps: true }
 );
 
 module.exports = mongoose.model("AssignedShop", assignedShopSchema);

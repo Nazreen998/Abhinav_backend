@@ -12,8 +12,16 @@ exports.addPendingShop = async (req, res) => {
       segment,
     } = req.body;
 
-    if (!shopName || !address || !latitude || !longitude) {
-      return res.json({
+    if (
+      !salesmanId ||
+      !shopName ||
+      !address ||
+      !latitude ||
+      !longitude ||
+      !image ||
+      !segment
+    ) {
+      return res.status(400).json({
         success: false,
         message: "Missing required fields",
       });
@@ -26,14 +34,13 @@ exports.addPendingShop = async (req, res) => {
       latitude,
       longitude,
       image,
-      segment,
+      segment, // must be fmcg / pipes
     });
 
     res.json({
       success: true,
       message: "Shop submitted for approval",
     });
-
   } catch (e) {
     res.status(500).json({
       success: false,
