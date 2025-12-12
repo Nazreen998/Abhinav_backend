@@ -1,106 +1,106 @@
 const PendingShop = require("../models/PendingShop_temp");
 const Shop = require("../models/Shop");
-// Generate shop ID
 const generateShopId = require("../helpers/shopIdGenerator");
 
-exports.approve = async (req, res) => {
-  const pending = await PendingShop.findById(req.params.id);
-  if (!pending) return res.status(404).json({ message: "Not found" });
-
-  const shopId = await generateShopId(); // 🔥 FIX
-
-  await Shop.create({
-    shopId, // ✅ AUTO GENERATED
-    shopName: pending.shopName,
-    address: pending.address,
-    latitude: pending.latitude,
-    longitude: pending.longitude,
-    image: pending.image,
-    segment: pending.segment,
-    salesmanId: pending.salesmanId,
-    approvedBy: req.user.id,
-  });
-
-  pending.status = "approved";
-  await pending.save();
-
-  res.json({ success: true });
-};
-
-
 // ======================
-// SALESMAN → ADD
+// SALESMAN → ADD PENDING SHOP
 // ======================
 exports.add = async (req, res) => {
-  const { shopName, address, latitude, longitude, image } = req.body;
+  try {
+    const { shopName, address, latitude, longitude, image } = req.body;
 
- await PendingShop.create({
-  salesmanId: req.user.id,
-  createdBy: req.user.name, // ✅ ADD THIS
-  shopName,
-  address,
-  latitude,
-  longitude,
-  image,
-  segment: req.user.segment,
-  status: "pending",
-});
+    await PendingShop.create({
+      shopName,
+      address,
+      latitude,
+      longitude,
+      image,
 
+      salesmanId: req.user.id,
+      createdBy: req.user.name,        // 🔥 SALESMAN NAME
+      segment: req.user.segment,
+      status: "pending",
+    });
 
-  res.json({ success: true });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("ADD PENDING ERROR:", err);
+    res.status(500).json({ success: false, message: "Add failed" });
+  }
 };
 
 // ======================
-// MANAGER / MASTER → VIEW PENDING
+// MANAGER / MASTER → LIST PENDING
 // ======================
 exports.listPending = async (req, res) => {
-  let filter = { status: "pending" };
+  try {
+    let filter = { status: "pending" };
 
-  // MANAGER → segment wise
-  if (req.user.role === "manager") {
-    filter.segment = req.user.segment;
+    if (req.user.role === "manager") {
+      filter.segment = req.user.segment;
+    }
+
+    const data = await PendingShop.find(filter).sort({ createdAt: -1 });
+
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error("LIST PENDING ERROR:", err);
+    res.status(500).json({ success: false });
   }
-
-  // MASTER → no segment filter (see all)
-
-  const data = await PendingShop.find(filter).sort({ createdAt: -1 });
-
-  res.json({ success: true, data });
 };
 
 // ======================
-// MANAGER → APPROVE
+// MANAGER / MASTER → APPROVE
 // ======================
 exports.approve = async (req, res) => {
-  const pending = await PendingShop.findById(req.params.id);
-  if (!pending) return res.status(404).json({ message: "Not found" });
+  try {
+    const pending = await PendingShop.findById(req.params.id);
 
-  // MOVE TO SHOPS
-  await Shop.create({
-    shopName: pending.shopName,
-    address: pending.address,
-    latitude: pending.latitude,
-    longitude: pending.longitude,
-    image: pending.image,
-    segment: pending.segment,
-    salesmanId: pending.salesmanId,
-    approvedBy: req.user.id,
-  });
+    if (!pending) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Pending shop not found" });
+    }
 
-  pending.status = "approved";
-  await pending.save();
+    const shopId = await generateShopId(); // 🔥 AUTO SHOP ID
 
-  res.json({ success: true });
+    await Shop.create({
+      shopId,
+      shopName: pending.shopName,
+      address: pending.address,
+      latitude: pending.latitude,
+      longitude: pending.longitude,
+      image: pending.image,
+      segment: pending.segment,
+
+      salesmanId: pending.salesmanId,
+      salesmanName: pending.createdBy, // 🔥 SALESMAN NAME
+      approvedBy: req.user.name,       // manager / master name
+    });
+
+    pending.status = "approved";
+    await pending.save();
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("APPROVE ERROR:", err);
+    res.status(500).json({ success: false, message: "Approval failed" });
+  }
 };
 
 // ======================
-// MANAGER → REJECT
+// MANAGER / MASTER → REJECT
 // ======================
 exports.reject = async (req, res) => {
-  await PendingShop.findByIdAndUpdate(req.params.id, {
-    status: "rejected",
-    rejectReason: req.body.reason,
-  });
+  try {
+    await PendingShop.findByIdAndUpdate(req.params.id, {
+      status: "rejected",
+      rejectReason: req.body.reason,
+    });
 
-  res.json({ success: true });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("REJECT ERROR:", err);
+    res.status(500).json({ success: false });
+  }
 };
