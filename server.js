@@ -49,3 +49,6 @@ app.listen(PORT, () => {
 //visit logs
 const visitRoutes = require("./routes/visitRoutes");
 app.use("/api/visits", visitRoutes);
+//pending shop logs
+const pendingRoutes = require("./routes/pendingRoutes");
+app.use("/api/pending", pendingRoutes);

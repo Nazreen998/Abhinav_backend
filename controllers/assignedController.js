@@ -13,44 +13,52 @@ const getISTDate = () => {
 // ASSIGN SHOP
 // -------------------------------------------------
 exports.assignShop = async (req, res) => {
-  console.log("🔥 ASSIGN API HIT");
-  console.log("BODY =>", req.body);
-  console.log("USER =>", req.user);
   try {
-    const { shop_name, salesman_name, segment } = req.body;
+    console.log("🔥 ASSIGN HIT");
+    console.log("BODY =>", req.body);
+    console.log("USER =>", req.user);
 
-    if (!shop_name || !salesman_name) {
-      return res.status(400).json({
+    if (!req.user) {
+      return res.status(401).json({
         success: false,
-        message: "shop_name and salesman_name required",
+        message: "User not authenticated",
       });
     }
 
-    // prevent duplicate
-    const exists = await AssignedShop.findOne({ shop_name, salesman_name });
-    if (exists) return res.json({ success: true });
+    const { shop_name, salesman_name, segment } = req.body;
 
-    // auto sequence
+    if (!shop_name || !salesman_name || !segment) {
+      return res.status(400).json({
+        success: false,
+        message: "shop_name, salesman_name, segment required",
+      });
+    }
+
+    const exists = await AssignedShop.findOne({ shop_name, salesman_name });
+    if (exists) {
+      return res.json({ success: true });
+    }
+
     const last = await AssignedShop.find({ salesman_name })
       .sort({ sequence: -1 })
       .limit(1);
 
     const nextSeq = last.length ? last[0].sequence + 1 : 1;
 
-  await AssignedShop.create({
-  shop_name,
-  salesman_name,
-  segment,
-  sequence: nextSeq,
-  assigned_by: req.user.name,
-  assigned_by_role:
-    req.user.role === "manager" || req.user.role === "master"
-      ? req.user.role
-      : "master", // 🔥 fallback
-});
+    const doc = await AssignedShop.create({
+      shop_name,
+      salesman_name,
+      segment,
+      sequence: nextSeq,
+      assigned_by: req.user.name,
+      assigned_by_role: req.user.role,
+    });
+
+    console.log("✅ SAVED =>", doc);
 
     res.json({ success: true });
   } catch (e) {
+    console.error("❌ ASSIGN ERROR =>", e);
     res.status(500).json({ success: false, error: e.message });
   }
 };
