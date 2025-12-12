@@ -1,32 +1,53 @@
 const AssignedShop = require("../models/AssignedShop");
-const Shop = require("../models/Shop");
+const VisitLog = require("../models/VisitLog");
+
+// 🇮🇳 IST helper
+const getISTDate = () => {
+  const now = new Date();
+  return new Date(
+    now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+  );
+};
 
 // -------------------------------------------------
 // ASSIGN SHOP
 // -------------------------------------------------
 exports.assignShop = async (req, res) => {
   try {
-    const { shopName, area, salesmanName, salesmanArea, shopLat, shopLng } =
-      req.body;
+    const { shop_name, salesman_name, segment } = req.body;
 
-    if (area !== salesmanArea) {
-      return res.status(400).json({ message: "Area mismatch" });
+    if (!shop_name || !salesman_name) {
+      return res.status(400).json({
+        success: false,
+        message: "shop_name and salesman_name required",
+      });
     }
 
+    // prevent duplicate
+    const exists = await AssignedShop.findOne({ shop_name, salesman_name });
+    if (exists) return res.json({ success: true });
+
+    // auto sequence
+    const last = await AssignedShop.find({ salesman_name })
+      .sort({ sequence: -1 })
+      .limit(1);
+
+    const nextSeq = last.length ? last[0].sequence + 1 : 1;
+
     await AssignedShop.create({
-      shopName,
-      area,
-      salesmanName,
-      salesmanArea,
-      shopLat,
-      shopLng,
+      shop_name,
+      salesman_name,
+      segment,
+      sequence: nextSeq,
+      assigned_by: req.user.name,
+      assigned_by_role: req.user.role,
+      createdAt: getISTDate(),
+      updatedAt: getISTDate(),
     });
 
-    await Shop.deleteOne({ shopName, area });
-
-    res.json({ success: true, message: "Shop assigned" });
+    res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ success: false, error: e.message });
   }
 };
 
@@ -36,90 +57,93 @@ exports.assignShop = async (req, res) => {
 exports.getAssignedShops = async (req, res) => {
   try {
     let filter = {};
-
     if (req.user.role === "salesman") {
-      filter.salesmanName = req.user.name;
+      filter.salesman_name = req.user.name;
     }
 
-    const assigned = await AssignedShop.find(filter).sort({ createdAt: -1 });
-
+    const assigned = await AssignedShop.find(filter).sort({ sequence: 1 });
     res.json({ success: true, assigned });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ success: false, error: e.message });
   }
 };
 
 // -------------------------------------------------
-// REASSIGN SHOP
-// -------------------------------------------------
-exports.reassignShop = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { salesmanName, salesmanArea } = req.body;
-
-    const shop = await AssignedShop.findById(id);
-    if (!shop) return res.status(404).json({ message: "Not found" });
-
-    if (shop.area !== salesmanArea) {
-      return res.status(400).json({ message: "Area mismatch" });
-    }
-
-    shop.salesmanName = salesmanName;
-    shop.salesmanArea = salesmanArea;
-    await shop.save();
-
-    res.json({ success: true, message: "Reassigned" });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-};
-
-// -------------------------------------------------
-// MOVE BACK TO PENDING
-// -------------------------------------------------
-exports.moveBackToPending = async (req, res) => {
-  try {
-    const id = req.params.id;
-
-    const shop = await AssignedShop.findById(id);
-    if (!shop) return res.status(404).json({ message: "Not found" });
-
-    await Shop.create({
-      shopName: shop.shopName,
-      area: shop.area,
-      latitude: shop.shopLat,
-      longitude: shop.shopLng,
-    });
-
-    await AssignedShop.findByIdAndDelete(id);
-
-    res.json({ success: true, message: "Moved to pending" });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-};
-
-// -------------------------------------------------
-// ⭐ REMOVE ASSIGNED SHOP (FIXED)
+// REMOVE ASSIGNED SHOP + RESEQUENCE
 // -------------------------------------------------
 exports.removeAssigned = async (req, res) => {
   try {
-    const { shop_id, user_id } = req.body;
+    const { shop_name, salesman_name } = req.body;
 
-    if (!shop_id || !user_id) {
-      return res.status(400).json({
-        success: false,
-        message: "shop_id and user_id required",
-      });
+    await AssignedShop.findOneAndDelete({ shop_name, salesman_name });
+
+    const remaining = await AssignedShop.find({ salesman_name }).sort({ sequence: 1 });
+
+    for (let i = 0; i < remaining.length; i++) {
+      remaining[i].sequence = i + 1;
+      await remaining[i].save();
     }
 
-    await AssignedShop.findOneAndDelete({
-      shop_id,
-      user_id,
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+};
+
+// -------------------------------------------------
+// REORDER ASSIGNED SHOPS (DRAG)
+// -------------------------------------------------
+exports.reorderAssignedShops = async (req, res) => {
+  try {
+    const { salesman_name, shops } = req.body;
+
+    for (let s of shops) {
+      await AssignedShop.findOneAndUpdate(
+        { salesman_name, shop_name: s.shop_name },
+        { sequence: s.sequence, updatedAt: getISTDate() }
+      );
+    }
+
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+};
+
+// ------------------------------------------------
+// SALESMAN TODAY / COMPLETED / PENDING
+// ------------------------------------------------
+exports.getSalesmanTodayStatus = async (req, res) => {
+  try {
+    const salesmanName = req.user.name;
+
+    const today = new Date()
+      .toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+
+    const assigned = await AssignedShop.find({ salesman_name: salesmanName })
+      .sort({ sequence: 1 });
+
+    const visits = await VisitLog.find({
+      salesman: salesmanName,
+      date: today,
     });
 
-    return res.json({ success: true });
+    const visited = visits.map(v => v.shop_name);
+
+    const completed = [];
+    const pending = [];
+
+    for (let a of assigned) {
+      visited.includes(a.shop_name) ? completed.push(a) : pending.push(a);
+    }
+
+    res.json({
+      success: true,
+      today: pending,
+      pending,
+      completed,
+    });
   } catch (e) {
-    return res.status(500).json({ success: false, error: e.message });
+    res.status(500).json({ success: false, error: e.message });
   }
 };
