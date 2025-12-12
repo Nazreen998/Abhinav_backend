@@ -1,13 +1,12 @@
 const Counter = require("../models/Counter_temp");
 
-async function generateShopId() {
+module.exports = async function generateShopId() {
   const counter = await Counter.findOneAndUpdate(
-    { name: "shopId" },
+    { name: "shop_id" },
     { $inc: { seq: 1 } },
     { new: true, upsert: true }
   );
 
-  return `S${counter.seq.toString().padStart(3, "0")}`;
-}
-
-module.exports = generateShopId;
+  const num = counter.seq.toString().padStart(3, "0");
+  return `S${num}`;
+};
