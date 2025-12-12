@@ -11,6 +11,9 @@ const userSchema = new mongoose.Schema({
         required: true
     },
     segment: { type: String, required: true }
-}, { timestamps: true });
+}, 
+{
+    timestamps: true, // ✅ THIS IS THE KEY
+  },
 
-module.exports = mongoose.model("User", userSchema);
+module.exports = mongoose.model("User", userSchema));
