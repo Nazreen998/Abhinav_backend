@@ -1,5 +1,32 @@
 const PendingShop = require("../models/PendingShop_temp");
 const Shop = require("../models/Shop");
+// Generate shop ID
+const generateShopId = require("../helpers/shopIdGenerator");
+
+exports.approve = async (req, res) => {
+  const pending = await PendingShop.findById(req.params.id);
+  if (!pending) return res.status(404).json({ message: "Not found" });
+
+  const shopId = await generateShopId(); // 🔥 FIX
+
+  await Shop.create({
+    shopId, // ✅ AUTO GENERATED
+    shopName: pending.shopName,
+    address: pending.address,
+    latitude: pending.latitude,
+    longitude: pending.longitude,
+    image: pending.image,
+    segment: pending.segment,
+    salesmanId: pending.salesmanId,
+    approvedBy: req.user.id,
+  });
+
+  pending.status = "approved";
+  await pending.save();
+
+  res.json({ success: true });
+};
+
 
 // ======================
 // SALESMAN → ADD
