@@ -1,4 +1,4 @@
-const Counter = require("../models/Counter");
+const Counter = require("../models/Counter_temp");
 
 async function generateShopId() {
   const counter = await Counter.findOneAndUpdate(
