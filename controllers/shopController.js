@@ -1,11 +1,15 @@
 const Shop = require("../models/Shop");
 
-
-// LIST SHOPS
+// ⭐ LIST SHOPS (FIXED – THIS IS THE KEY)
 exports.listShops = async (req, res) => {
   try {
-    // ❌ DO NOT FILTER HERE
-    const shops = await Shop.find({});
+    // ✅ Include shops where isDeleted is false OR field not present
+    const shops = await Shop.find({
+      $or: [
+        { isDeleted: false },
+        { isDeleted: { $exists: false } }
+      ]
+    }).sort({ createdAt: -1 });
 
     console.log("SHOP COUNT =", shops.length);
 
@@ -22,7 +26,6 @@ exports.listShops = async (req, res) => {
   }
 };
 
-
 // ⭐ ADD SHOP
 exports.addShop = async (req, res) => {
   try {
@@ -33,13 +36,14 @@ exports.addShop = async (req, res) => {
       ownerName,
       contactNumber,
       latitude,
-      longitude
+      longitude,
+      segment,
     } = req.body;
 
-    if (!shopName || !area) {
+    if (!shopName || !area || !segment) {
       return res
         .status(400)
-        .json({ success: false, message: "Shop name & area required" });
+        .json({ success: false, message: "Required fields missing" });
     }
 
     const shopImage = req.file ? req.file.path : null;
@@ -52,8 +56,9 @@ exports.addShop = async (req, res) => {
       contactNumber,
       latitude,
       longitude,
+      segment,
       shopImage,
-      isDeleted: false
+      isDeleted: false,
     });
 
     res.json({ success: true, shop });
@@ -62,36 +67,21 @@ exports.addShop = async (req, res) => {
   }
 };
 
-// ⭐ UPDATE SHOP — WORKS WITH BOTH shop_id AND _id ⭐
+// ⭐ UPDATE SHOP
 exports.updateShop = async (req, res) => {
   try {
-    const id = req.params.id; // can be shop_id (S001) or Mongo _id
+    const id = req.params.id;
 
-    let shop;
+    const update = {
+      shopName: req.body.shopName,
+      shopAddress: req.body.shopAddress,
+      segment: req.body.segment,
+    };
 
-    // IF ID LOOKS LIKE MongoId → USE findById
-    if (id.length > 10) {
-      shop = await Shop.findByIdAndUpdate(
-        id,
-        {
-          shop_name: req.body.shopName,
-          address: req.body.shopAddress,
-          segment: req.body.segment
-        },
-        { new: true }
-      );
-    } else {
-      // Otherwise assume shop_id (S001, S005...)
-      shop = await Shop.findOneAndUpdate(
-        { shop_id: id },
-        {
-          shop_name: req.body.shopName,
-          address: req.body.shopAddress,
-          segment: req.body.segment
-        },
-        { new: true }
-      );
-    }
+    const shop =
+      id.length > 10
+        ? await Shop.findByIdAndUpdate(id, update, { new: true })
+        : await Shop.findOneAndUpdate({ shop_id: id }, update, { new: true });
 
     if (!shop) {
       return res
@@ -105,38 +95,19 @@ exports.updateShop = async (req, res) => {
   }
 };
 
-// ⭐ LIST ACTIVE SHOPS
-exports.listShops = async (req, res) => {
-  try {
-    const shops = await Shop.find({ isDeleted: false }).sort({
-      createdAt: -1
-    });
-    res.json({ success: true, shops });
-  } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
-  }
-};
-
 // ⭐ SOFT DELETE SHOP
 exports.softDeleteShop = async (req, res) => {
   try {
     const id = req.params.id;
 
-    let shop;
-
-    if (id.length > 10) {
-      shop = await Shop.findByIdAndUpdate(
-        id,
-        { isDeleted: true },
-        { new: true }
-      );
-    } else {
-      shop = await Shop.findOneAndUpdate(
-        { shop_id: id },
-        { isDeleted: true },
-        { new: true }
-      );
-    }
+    const shop =
+      id.length > 10
+        ? await Shop.findByIdAndUpdate(id, { isDeleted: true }, { new: true })
+        : await Shop.findOneAndUpdate(
+            { shop_id: id },
+            { isDeleted: true },
+            { new: true }
+          );
 
     if (!shop) {
       return res
@@ -146,7 +117,7 @@ exports.softDeleteShop = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Shop deleted inside app only"
+      message: "Shop deleted (soft delete)",
     });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
