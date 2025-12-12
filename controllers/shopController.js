@@ -1,5 +1,28 @@
 const Shop = require("../models/Shop");
 
+
+// LIST SHOPS
+exports.listShops = async (req, res) => {
+  try {
+    // ❌ DO NOT FILTER HERE
+    const shops = await Shop.find({});
+
+    console.log("SHOP COUNT =", shops.length);
+
+    res.json({
+      success: true,
+      shops,
+    });
+  } catch (err) {
+    console.error("LIST SHOP ERROR:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch shops",
+    });
+  }
+};
+
+
 // ⭐ ADD SHOP
 exports.addShop = async (req, res) => {
   try {
