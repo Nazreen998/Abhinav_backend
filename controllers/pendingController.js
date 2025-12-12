@@ -22,13 +22,19 @@ exports.add = async (req, res) => {
 };
 
 // ======================
-// MANAGER → VIEW PENDING
+// MANAGER / MASTER → VIEW PENDING
 // ======================
 exports.listPending = async (req, res) => {
-  const data = await PendingShop.find({
-    segment: req.user.segment,
-    status: "pending",
-  }).sort({ createdAt: -1 });
+  let filter = { status: "pending" };
+
+  // MANAGER → segment wise
+  if (req.user.role === "manager") {
+    filter.segment = req.user.segment;
+  }
+
+  // MASTER → no segment filter (see all)
+
+  const data = await PendingShop.find(filter).sort({ createdAt: -1 });
 
   res.json({ success: true, data });
 };
