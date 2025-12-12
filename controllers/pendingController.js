@@ -1,50 +1,71 @@
-const PendingShop = require("../models/PendingShop");
+const PendingShop = require("../models/PendingShop_temp");
+const Shop = require("../models/Shop");
 
-exports.addPendingShop = async (req, res) => {
-  try {
-    const {
-      salesmanId,
-      shopName,
-      address,
-      latitude,
-      longitude,
-      image,
-      segment,
-    } = req.body;
+// ======================
+// SALESMAN → ADD
+// ======================
+exports.add = async (req, res) => {
+  const { shopName, address, latitude, longitude, image } = req.body;
 
-    if (
-      !salesmanId ||
-      !shopName ||
-      !address ||
-      !latitude ||
-      !longitude ||
-      !image ||
-      !segment
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing required fields",
-      });
-    }
+  await PendingShop.create({
+    salesmanId: req.user.id,
+    shopName,
+    address,
+    latitude,
+    longitude,
+    image,
+    segment: req.user.segment,
+    status: "pending",
+  });
 
-    await PendingShop.create({
-      salesmanId,
-      shopName,
-      address,
-      latitude,
-      longitude,
-      image,
-      segment, // must be fmcg / pipes
-    });
+  res.json({ success: true });
+};
 
-    res.json({
-      success: true,
-      message: "Shop submitted for approval",
-    });
-  } catch (e) {
-    res.status(500).json({
-      success: false,
-      message: e.message,
-    });
-  }
+// ======================
+// MANAGER → VIEW PENDING
+// ======================
+exports.listPending = async (req, res) => {
+  const data = await PendingShop.find({
+    segment: req.user.segment,
+    status: "pending",
+  }).sort({ createdAt: -1 });
+
+  res.json({ success: true, data });
+};
+
+// ======================
+// MANAGER → APPROVE
+// ======================
+exports.approve = async (req, res) => {
+  const pending = await PendingShop.findById(req.params.id);
+  if (!pending) return res.status(404).json({ message: "Not found" });
+
+  // MOVE TO SHOPS
+  await Shop.create({
+    shopName: pending.shopName,
+    address: pending.address,
+    latitude: pending.latitude,
+    longitude: pending.longitude,
+    image: pending.image,
+    segment: pending.segment,
+    salesmanId: pending.salesmanId,
+    approvedBy: req.user.id,
+  });
+
+  pending.status = "approved";
+  await pending.save();
+
+  res.json({ success: true });
+};
+
+// ======================
+// MANAGER → REJECT
+// ======================
+exports.reject = async (req, res) => {
+  await PendingShop.findByIdAndUpdate(req.params.id, {
+    status: "rejected",
+    rejectReason: req.body.reason,
+  });
+
+  res.json({ success: true });
 };

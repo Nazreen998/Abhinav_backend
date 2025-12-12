@@ -1,12 +1,13 @@
 const router = require("express").Router();
-const pendingController = require("../controllers/pendingController");
 const auth = require("../middleware/auth");
+const ctrl = require("../controllers/pendingController");
 
-// SALESMAN only add panna allow
-router.post(
-  "/add",
-  auth(["salesman"]),
-  pendingController.addPendingShop
-);
+// SALESMAN
+router.post("/add", auth(["salesman"]), ctrl.add);
+
+// MANAGER / MASTER
+router.get("/list", auth(["manager", "master"]), ctrl.listPending);
+router.post("/approve/:id", auth(["manager", "master"]), ctrl.approve);
+router.post("/reject/:id", auth(["manager", "master"]), ctrl.reject);
 
 module.exports = router;
