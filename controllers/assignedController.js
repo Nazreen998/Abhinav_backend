@@ -13,8 +13,9 @@ const getISTDate = () => {
 // ASSIGN SHOP
 // -------------------------------------------------
 exports.assignShop = async (req, res) => {
-     console.log("ASSIGN HIT:", req.body); 
-      console.log("USER FROM TOKEN =>", req.user);
+  console.log("🔥 ASSIGN API HIT");
+  console.log("BODY =>", req.body);
+  console.log("USER =>", req.user);
   try {
     const { shop_name, salesman_name, segment } = req.body;
 
@@ -36,15 +37,17 @@ exports.assignShop = async (req, res) => {
 
     const nextSeq = last.length ? last[0].sequence + 1 : 1;
 
-   await AssignedShop.create({
+  await AssignedShop.create({
   shop_name,
   salesman_name,
   segment,
   sequence: nextSeq,
-  assigned_by: req.user?.name || "SYSTEM",
-  assigned_by_role: req.user?.role || "master",
+  assigned_by: req.user.name,
+  assigned_by_role:
+    req.user.role === "manager" || req.user.role === "master"
+      ? req.user.role
+      : "master", // 🔥 fallback
 });
-
 
     res.json({ success: true });
   } catch (e) {
