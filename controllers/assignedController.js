@@ -14,6 +14,7 @@ const getISTDate = () => {
 // -------------------------------------------------
 exports.assignShop = async (req, res) => {
      console.log("ASSIGN HIT:", req.body); 
+      console.log("USER FROM TOKEN =>", req.user);
   try {
     const { shop_name, salesman_name, segment } = req.body;
 
@@ -35,16 +36,15 @@ exports.assignShop = async (req, res) => {
 
     const nextSeq = last.length ? last[0].sequence + 1 : 1;
 
-    await AssignedShop.create({
-      shop_name,
-      salesman_name,
-      segment,
-      sequence: nextSeq,
-      assigned_by: req.user.name,
-      assigned_by_role: req.user.role,
-      createdAt: getISTDate(),
-      updatedAt: getISTDate(),
-    });
+   await AssignedShop.create({
+  shop_name,
+  salesman_name,
+  segment,
+  sequence: nextSeq,
+  assigned_by: req.user?.name || "SYSTEM",
+  assigned_by_role: req.user?.role || "master",
+});
+
 
     res.json({ success: true });
   } catch (e) {
