@@ -57,30 +57,20 @@ exports.approve = async (req, res) => {
     const pending = await PendingShop.findById(req.params.id);
 
     if (!pending) {
-      return res.status(404).json({
-        success: false,
-        message: "Pending shop not found",
-      });
+      return res.status(404).json({ success: false });
     }
 
-    const shopId = await generateShopId(); // S007, S008...
+    const shopId = await generateShopId(); // ✅ ALWAYS UNIQUE
 
     await Shop.create({
-      shop_id: shopId,                 // ✅ REQUIRED
-      shop_name: pending.shopName,     // ✅ REQUIRED
-
+      shop_id: shopId,
+      shop_name: pending.shopName,
       address: pending.address,
-
-      // 🔥 MOST IMPORTANT FIX
-      lat: pending.latitude,            // ✅ MATCH WORKING SHOPS
-      lng: pending.longitude,           // ✅ MATCH WORKING SHOPS
-
+      lat: pending.latitude,
+      lng: pending.longitude,
       segment: pending.segment,
       status: "approved",
-
-      created_by: pending.createdBy,    // salesman name
-      created_at: new Date().toISOString(),
-
+      created_by: pending.createdBy,
       image: pending.image || null,
     });
 
@@ -90,12 +80,19 @@ exports.approve = async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error("APPROVE ERROR:", err);
-    res.status(500).json({
-      success: false,
-      message: "Approval failed",
-    });
+
+    // 🔥 duplicate shop_id safety
+    if (err.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: "Duplicate Shop ID, try again",
+      });
+    }
+
+    res.status(500).json({ success: false });
   }
 };
+
 // ======================
 // MANAGER / MASTER → REJECT
 // ======================
