@@ -1,16 +1,29 @@
 const mongoose = require("mongoose");
 
-const assignedShopSchema = new mongoose.Schema({
-    shopName: { type: String, required: true },
-    area: { type: String, required: true },
+const assignedShopSchema = new mongoose.Schema(
+  {
+    salesman_name: { type: String, required: true },
+    salesman_segment: { type: String, required: true },
 
-    shopLat: Number,
-    shopLng: Number,
+    shop_name: { type: String, required: true },
+    shop_segment: { type: String, required: true },
 
-    salesmanName: { type: String, required: true },
-    salesmanArea: { type: String, required: true },
+    sequence: { type: Number, required: true },
 
-    createdAt: { type: Date, default: Date.now }
-});
+    assigned_by: { type: String, required: true },
+
+    status: {
+      type: String,
+      enum: ["pending", "completed"],
+      default: "pending",
+    },
+  },
+  {
+    timestamps: {
+      createdAt: "assigned_at",
+      updatedAt: false,
+    },
+  }
+);
 
 module.exports = mongoose.model("AssignedShop", assignedShopSchema);

@@ -1,40 +1,24 @@
 const router = require("express").Router();
-const assignedController = require("../controllers/assignedController");
+const ctrl = require("../controllers/assignedController");
 const auth = require("../middleware/auth");
 
-// Assign shop
-router.post(
-  "/assign",
-  auth(["master", "manager"]),
-  assignedController.assignShop
-);
+// assign
+router.post("/assign", auth(["master", "manager"]), ctrl.assignShop);
 
-// View assigned shops
+// list
+router.get("/list", auth(["master", "manager", "salesman"]), ctrl.getAssignedShops);
+
+// remove
+router.post("/remove", auth(["master", "manager"]), ctrl.removeAssigned);
+
+// reorder (🔥 FIXED)
+router.post("/reorder", auth(["master", "manager"]), ctrl.reorderAssignedShops);
+
+// salesman today
 router.get(
-  "/list",
-  auth(["master", "manager", "salesman"]),
-  assignedController.getAssignedShops
-);
-
-// Reassign shop
-router.put(
-  "/reassign/:id",
-  auth(["master", "manager"]),
-  assignedController.reassignShop
-);
-
-// Move back to pending
-router.put(
-  "/move-back/:id",
-  auth(["master", "manager"]),
-  assignedController.moveBackToPending
-);
-
-// ⭐ REMOVE ASSIGNED SHOP
-router.delete(
-  "/remove",
-  auth(["master", "manager"]),
-  assignedController.removeAssigned
+  "/salesman/today",
+  auth(["salesman"]),
+  ctrl.getSalesmanTodayStatus
 );
 
 module.exports = router;
