@@ -36,6 +36,9 @@ const pendingShopSchema = new mongoose.Schema({
     enum: ["fmcg", "pipes"],
     required: true,
   },
+  createdBy: {
+  type: String,
+},
 
   status: {
     type: String,

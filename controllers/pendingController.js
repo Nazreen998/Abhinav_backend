@@ -7,16 +7,18 @@ const Shop = require("../models/Shop");
 exports.add = async (req, res) => {
   const { shopName, address, latitude, longitude, image } = req.body;
 
-  await PendingShop.create({
-    salesmanId: req.user.id,
-    shopName,
-    address,
-    latitude,
-    longitude,
-    image,
-    segment: req.user.segment,
-    status: "pending",
-  });
+ await PendingShop.create({
+  salesmanId: req.user.id,
+  createdBy: req.user.name, // ✅ ADD THIS
+  shopName,
+  address,
+  latitude,
+  longitude,
+  image,
+  segment: req.user.segment,
+  status: "pending",
+});
+
 
   res.json({ success: true });
 };
