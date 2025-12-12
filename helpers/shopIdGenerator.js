@@ -1,4 +1,3 @@
-// helpers/shopIdGenerator.js
 const Counter = require("../models/Counter");
 
 async function generateShopId() {
