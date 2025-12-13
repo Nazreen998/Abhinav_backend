@@ -14,7 +14,7 @@ exports.getNextShop = async (req, res) => {
     const salesman = await User.findOne({
       user_id: salesmanCode,
       role: "salesman",
-    });
+    }).lean();
 
     if (!salesman) {
       return res.status(404).json({
@@ -23,35 +23,35 @@ exports.getNextShop = async (req, res) => {
       });
     }
 
-    let shop = null;
+    // 2️⃣ PURE READ using AGGREGATION (NO VALIDATION POSSIBLE)
+    let shops = await AssignedShop.aggregate([
+      {
+        $match: {
+          $or: [
+            { salesman_id: salesman._id, status: "active" },
+            { salesman_name: salesman.name },
+          ],
+        },
+      },
+      {
+        $sort: { sequence: 1, createdAt: 1 },
+      },
+      {
+        $limit: 1,
+      },
+    ]);
 
-    // 2️⃣ Try NEW records (preferred)
-    shop = await AssignedShop.findOne({
-      salesman_id: salesman._id,
-      status: "active",
-    }).sort({ sequence: 1 });
-
-    // 3️⃣ Fallback OLD records (name based, ignore status)
-    if (!shop) {
-      shop = await AssignedShop.findOne({
-        salesman_name: salesman.name,
-      }).sort({ createdAt: 1 });
-    }
-
-    // ❌ Nothing at all
-    if (!shop) {
+    if (!shops || shops.length === 0) {
       return res.json({
         success: false,
         message: "No assigned shops",
       });
     }
 
-    // ✅ IMPORTANT: DO NOT SAVE / UPDATE HERE
-    // Just return the shop as-is
-
+    // 3️⃣ SUCCESS
     return res.json({
       success: true,
-      nextShop: shop,
+      nextShop: shops[0],
     });
   } catch (e) {
     console.error("NEXT SHOP ERROR:", e);
@@ -61,7 +61,6 @@ exports.getNextShop = async (req, res) => {
     });
   }
 };
-
 // -------------------------------------------------
 // MATCH SHOP (IMAGE + DISTANCE)
 // -------------------------------------------------
