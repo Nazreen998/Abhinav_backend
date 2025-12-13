@@ -1,11 +1,12 @@
 const AssignedShop = require("../models/AssignedShop");
 const History = require("../models/History");
 const User = require("../models/User");
+const Shop = require("../models/Shop");
 const { calculateDistance } = require("../utils/distanceCalculator");
 
-// -------------------------------------------------
-// GET NEXT SHOP (OLD + NEW DATA COMPATIBLE)
-// -------------------------------------------------
+// =================================================
+// GET NEXT SHOPS (ALL ACTIVE)
+// =================================================
 exports.getNextShop = async (req, res) => {
   try {
     const { salesmanCode } = req.params;
@@ -13,7 +14,7 @@ exports.getNextShop = async (req, res) => {
     const salesman = await User.findOne({
       user_id: salesmanCode,
       role: "salesman",
-    }).lean();
+    });
 
     if (!salesman) {
       return res.status(404).json({
@@ -22,79 +23,57 @@ exports.getNextShop = async (req, res) => {
       });
     }
 
-  const shops = await AssignedShop.aggregate([
-  {
-    $match: {
-  $or: [
-    { salesman_id: salesman._id, status: "active" },
-    { salesman_name: salesman.name, status: "active" },
-  ],
-},
-
-  },
-
-  // ✅ ONLY reliable join = shop_name (because OLD DATA)
-  {
-    $lookup: {
-      from: "shops",
-      localField: "shop_name",
-      foreignField: "shop_name",
-      as: "shop",
-    },
-  },
-
-  {
-    $unwind: {
-      path: "$shop",
-      preserveNullAndEmptyArrays: true,
-    },
-  },
-
-  // ✅ NORMALIZE FIELDS
-  {
-    $addFields: {
-      lat: "$shop.lat",
-      lng: "$shop.lng",
-      address: {
-        $ifNull: ["$shop.address", "$shop.shopAddress"],
+    const shops = await AssignedShop.aggregate([
+      {
+        $match: {
+          $or: [
+            { salesman_id: salesman._id, status: "active" },
+            { salesman_name: salesman.name, status: "active" },
+          ],
+        },
       },
-    },
-  },
+      {
+        $lookup: {
+          from: "shops",
+          localField: "shop_name",
+          foreignField: "shop_name",
+          as: "shop",
+        },
+      },
+      {
+        $unwind: {
+          path: "$shop",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          lat: "$shop.lat",
+          lng: "$shop.lng",
+          address: "$shop.address",
+        },
+      },
+      {
+        $project: {
+          shop: 0,
+        },
+      },
+      { $sort: { sequence: 1 } },
+    ]);
 
-  // ✅ CLEAN RESPONSE
-  {
-    $project: {
-      shop: 0,
-    },
-  },
-
-  { $sort: { sequence: 1 } },
-]);
-
-
-    if (!shops.length) {
-      return res.json({
-        success: false,
-        shops: [],
-      });
-    }
-
-    // 🔥 IMPORTANT: send ARRAY, not object
     return res.json({
       success: true,
-      shops: shops,
+      shops,
     });
   } catch (e) {
-    return res.status(500).json({
-      success: false,
-      error: e.message,
-    });
+    console.error(e);
+    res.status(500).json({ success: false, error: e.message });
   }
 };
 
-// -------------------------------------------------
-// MATCH SHOP (IMAGE + DISTANCE)
-// -------------------------------------------------
+// =================================================
+// MATCH SHOP → SAVE HISTORY → REMOVE FROM NEXT
+// =================================================
 exports.matchShop = async (req, res) => {
   try {
     if (!req.file) {
@@ -113,21 +92,24 @@ exports.matchShop = async (req, res) => {
       salesmanLng,
     } = req.body;
 
-    // 🔎 STEP 1: Find assigned shop FIRST
-    const doc = await AssignedShop.findOne({
+    // 🔎 Find assigned shop
+    const assigned = await AssignedShop.findOne({
       shop_name,
-      salesman_name: req.user.name, // IMPORTANT (your data is name-based)
+      salesman_name: req.user.name,
       status: "active",
     });
 
-    if (!doc) {
+    if (!assigned) {
       return res.status(404).json({
         success: false,
         message: "Assigned shop not found",
       });
     }
 
-    // 📏 STEP 2: Calculate distance
+    // 🔎 Get shop details (for address)
+    const shop = await Shop.findOne({ shop_name });
+
+    // 📏 Distance
     const distance = calculateDistance(
       Number(salesmanLat),
       Number(salesmanLng),
@@ -137,13 +119,11 @@ exports.matchShop = async (req, res) => {
 
     const status = distance <= 50 ? "SUCCESS" : "FAILED";
 
-    // 🧾 STEP 3: SAVE HISTORY (ALL REQUIRED FIELDS)
+    // 🧾 SAVE HISTORY (SCHEMA PERFECT MATCH)
     await History.create({
       shopName: shop_name,
       salesmanName: req.user.name,
-
-      segment: doc.segment,
-      address: doc.address || "",
+      area: area || (shop ? shop.address : ""),
 
       shopLat: Number(shopLat),
       shopLng: Number(shopLng),
@@ -155,10 +135,10 @@ exports.matchShop = async (req, res) => {
       matchImage: req.file.path,
     });
 
-    // 🔥 STEP 4: REMOVE FROM NEXT SHOP IF SUCCESS
+    // 🔥 SUCCESS → REMOVE FROM NEXT SHOP
     if (status === "SUCCESS") {
-      doc.status = "removed";
-      await doc.save();
+      assigned.status = "removed";
+      await assigned.save();
     }
 
     res.json({
