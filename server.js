@@ -34,6 +34,7 @@ app.use("/api/nextshop", nextShopRoutes);
 app.use("/api/history", historyRoutes);
 app.use("/api/visits", visitRoutes);
 app.use("/api/pending", pendingRoutes);
+app.use("/api/assign", nextShopRoutes);
 
 // DEFAULT ROUTE
 app.get("/", (req, res) => {

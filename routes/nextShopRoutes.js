@@ -1,17 +1,22 @@
 const router = require("express").Router();
-const nextShopController = require("../controllers/nextShopController");
+const ctrl = require("../controllers/nextShopController");
 const auth = require("../middleware/auth");
 const uploadMatchImage = require("../middleware/uploadMatchImage");
 
-// Get next shop for salesman
-router.get("/next", auth(["salesman"]), nextShopController.getNextShop);
+// 🔥 FRONTEND COMPATIBLE ROUTE
+// Flutter: /api/assign/next/ABHI002
+router.get(
+  "/next/:salesmanCode",
+  auth(["salesman"]),
+  ctrl.getNextShop
+);
 
-// Match with image (MANDATORY)
+// Match shop
 router.post(
-    "/match",
-    auth(["salesman"]),
-    uploadMatchImage,   // REQUIRED matchImage
-    nextShopController.matchShop
+  "/match",
+  auth(["salesman"]),
+  uploadMatchImage,
+  ctrl.matchShop
 );
 
 module.exports = router;
