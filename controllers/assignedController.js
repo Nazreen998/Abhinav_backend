@@ -1,21 +1,18 @@
 const AssignedShop = require("../models/AssignedShop");
 const VisitLog = require("../models/VisitLog");
+const Shop = require("../models/Shop");
+const User = require("../models/User");
 
 // 🇮🇳 IST helper
 const getISTDate = () => {
   const now = new Date();
-  return new Date(
-    now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
-  );
+  return new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
 };
 
 // -------------------------------------------------
 // ASSIGN SHOP
 // -------------------------------------------------
 exports.assignShop = async (req, res) => {
-  console.log("✅ ASSIGN HIT BODY:", req.body);
-  console.log("✅ USER:", req.user);
-
   try {
     const { shop_name, salesman_name, segment } = req.body;
 
@@ -26,41 +23,95 @@ exports.assignShop = async (req, res) => {
       });
     }
 
-    const exists = await AssignedShop.findOne({ shop_name, salesman_name });
-    if (exists) return res.json({ success: true });
+    // 🔎 Find shop by name
+    const shop = await Shop.findOne({ shop_name, isDeleted: false });
+    if (!shop) {
+      return res.status(404).json({
+        success: false,
+        message: "Shop not found",
+      });
+    }
 
-    const last = await AssignedShop.find({ salesman_name })
+    // 🔎 Find salesman by name
+    const salesman = await User.findOne({
+      name: salesman_name,
+      role: "salesman",
+    });
+
+    if (!salesman) {
+      return res.status(404).json({
+        success: false,
+        message: "Salesman not found",
+      });
+    }
+
+    // 🔥 Segment validation (IMPORTANT)
+    if (shop.segment !== salesman.segment) {
+      return res.status(400).json({
+        success: false,
+        message: "Segment mismatch",
+      });
+    }
+
+    // 🔁 Duplicate active check
+    const exists = await AssignedShop.findOne({
+      shop_id: shop._id,
+      salesman_id: salesman._id,
+      status: "active",
+    });
+
+    if (exists) {
+      return res.json({ success: true });
+    }
+
+    // 🔢 Sequence calculation
+    const last = await AssignedShop.find({
+      salesman_id: salesman._id,
+      status: "active",
+    })
       .sort({ sequence: -1 })
       .limit(1);
 
     const nextSeq = last.length ? last[0].sequence + 1 : 1;
 
-    const saved = await AssignedShop.create({
-      shop_name,
-      salesman_name,
-      segment,
-      sequence: nextSeq,
-      assigned_by: req.user.name,
-      assigned_by_role: req.user.role,
-    });
+    await AssignedShop.create({
+      shop_id: shop._id,
+      shop_name: shop.shop_name,
 
-    console.log("✅ SAVED IN DB:", saved);
+      salesman_id: salesman._id,
+      salesman_name: salesman.name,
+
+      segment: shop.segment,
+      sequence: nextSeq,
+
+      assigned_by_id: req.user.id,
+      assigned_by_name: req.user.name,
+      assigned_by_role: req.user.role,
+
+      status: "active",
+    });
 
     res.json({ success: true });
   } catch (e) {
-    console.error("❌ ASSIGN ERROR:", e);
+    console.error(e);
     res.status(500).json({ success: false, error: e.message });
   }
 };
 
 // -------------------------------------------------
-// GET ASSIGNED SHOPS
+// GET ASSIGNED SHOPS (ROLE-WISE)
 // -------------------------------------------------
 exports.getAssignedShops = async (req, res) => {
   try {
-    let filter = {};
+    let filter = { status: "active" };
+
     if (req.user.role === "salesman") {
-      filter.salesman_name = req.user.name;
+      filter.salesman_id = req.user.id;
+    }
+
+    // Manager sees only their segment
+    if (req.user.role === "manager") {
+      filter.segment = req.user.segment;
     }
 
     const assigned = await AssignedShop.find(filter).sort({ sequence: 1 });
@@ -71,18 +122,32 @@ exports.getAssignedShops = async (req, res) => {
 };
 
 // -------------------------------------------------
-// REMOVE ASSIGNED SHOP + RESEQUENCE
+// REMOVE ASSIGNED SHOP (SOFT DELETE) + RESEQUENCE
 // -------------------------------------------------
 exports.removeAssigned = async (req, res) => {
   try {
-    const { shop_name, salesman_name } = req.body;
+    const { assign_id } = req.body;
+    if (!assign_id) {
+      return res.status(400).json({ success: false, message: "assign_id required" });
+    }
 
-    await AssignedShop.findOneAndDelete({ shop_name, salesman_name });
+    const doc = await AssignedShop.findById(assign_id);
+    if (!doc) return res.status(404).json({ success: false, message: "Not found" });
 
-    const remaining = await AssignedShop.find({ salesman_name }).sort({ sequence: 1 });
+    // soft delete
+    doc.status = "removed";
+    doc.updatedAt = getISTDate();
+    await doc.save();
+
+    // resequence remaining active shops for that salesman
+    const remaining = await AssignedShop.find({
+      salesman_id: doc.salesman_id,
+      status: "active",
+    }).sort({ sequence: 1 });
 
     for (let i = 0; i < remaining.length; i++) {
       remaining[i].sequence = i + 1;
+      remaining[i].updatedAt = getISTDate();
       await remaining[i].save();
     }
 
@@ -93,15 +158,86 @@ exports.removeAssigned = async (req, res) => {
 };
 
 // -------------------------------------------------
-// REORDER ASSIGNED SHOPS (DRAG)
+// EDIT ASSIGNED SHOP (Change salesman) + RESEQUENCE BOTH
+// -------------------------------------------------
+exports.editAssignedShop = async (req, res) => {
+  try {
+    const { assign_id, new_salesman_id } = req.body;
+
+    if (!assign_id || !new_salesman_id) {
+      return res.status(400).json({
+        success: false,
+        message: "assign_id & new_salesman_id required",
+      });
+    }
+
+    const doc = await AssignedShop.findById(assign_id);
+    if (!doc) return res.status(404).json({ success: false, message: "Not found" });
+
+    const newSalesman = await User.findById(new_salesman_id);
+    if (!newSalesman) {
+      return res.status(404).json({ success: false, message: "Salesman not found" });
+    }
+
+    // segment check
+    if (newSalesman.segment !== doc.segment) {
+      return res.status(400).json({ success: false, message: "Segment mismatch" });
+    }
+
+    const oldSalesmanId = doc.salesman_id;
+
+    // new sequence for new salesman
+    const last = await AssignedShop.find({
+      salesman_id: newSalesman._id,
+      status: "active",
+    })
+      .sort({ sequence: -1 })
+      .limit(1);
+
+    const nextSeq = last.length ? last[0].sequence + 1 : 1;
+
+    doc.salesman_id = newSalesman._id;
+    doc.salesman_name = newSalesman.name;
+    doc.sequence = nextSeq;
+    doc.updatedAt = getISTDate();
+    await doc.save();
+
+    // resequence old salesman list
+    const remainingOld = await AssignedShop.find({
+      salesman_id: oldSalesmanId,
+      status: "active",
+    }).sort({ sequence: 1 });
+
+    for (let i = 0; i < remainingOld.length; i++) {
+      remainingOld[i].sequence = i + 1;
+      remainingOld[i].updatedAt = getISTDate();
+      await remainingOld[i].save();
+    }
+
+    res.json({ success: true, message: "Updated" });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+};
+
+// -------------------------------------------------
+// REORDER ASSIGNED SHOPS (DRAG) - salesman wise
 // -------------------------------------------------
 exports.reorderAssignedShops = async (req, res) => {
   try {
-    const { salesman_name, shops } = req.body;
+    const { salesman_id, shops } = req.body;
 
-    for (let s of shops) {
+    if (!salesman_id || !Array.isArray(shops)) {
+      return res.status(400).json({
+        success: false,
+        message: "salesman_id & shops[] required",
+      });
+    }
+
+    // shops = [{ assign_id, sequence }]
+    for (const s of shops) {
       await AssignedShop.findOneAndUpdate(
-        { salesman_name, shop_name: s.shop_name },
+        { _id: s.assign_id, salesman_id, status: "active" },
         { sequence: s.sequence, updatedAt: getISTDate() }
       );
     }
@@ -113,24 +249,28 @@ exports.reorderAssignedShops = async (req, res) => {
 };
 
 // ------------------------------------------------
-// SALESMAN TODAY / COMPLETED / PENDING
+// SALESMAN TODAY / COMPLETED / PENDING (ID BASED)
 // ------------------------------------------------
 exports.getSalesmanTodayStatus = async (req, res) => {
   try {
+    const salesmanId = req.user.id;
     const salesmanName = req.user.name;
 
-    const today = new Date()
-      .toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+    const today = new Date().toLocaleDateString("en-CA", {
+      timeZone: "Asia/Kolkata",
+    });
 
-    const assigned = await AssignedShop.find({ salesman_name: salesmanName })
-      .sort({ sequence: 1 });
+    const assigned = await AssignedShop.find({
+      salesman_id: salesmanId,
+      status: "active",
+    }).sort({ sequence: 1 });
 
     const visits = await VisitLog.find({
-      salesman: salesmanName,
+      salesman: salesmanName, // VisitLog still name-based (ok for now)
       date: today,
     });
 
-    const visited = visits.map(v => v.shop_name);
+    const visited = visits.map((v) => v.shop_name);
 
     const completed = [];
     const pending = [];

@@ -36,5 +36,10 @@ router.get(
   auth(["salesman"]),
   ctrl.getSalesmanTodayStatus
 );
+router.post(
+  "/edit",
+  auth(["master", "manager"]),
+  ctrl.editAssignedShop
+);
 
 module.exports = router;
