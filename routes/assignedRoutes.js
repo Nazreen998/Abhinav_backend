@@ -2,44 +2,61 @@ const router = require("express").Router();
 const ctrl = require("../controllers/assignedController");
 const auth = require("../middleware/auth");
 
-// ASSIGN
+// ================================
+// ASSIGN SHOP (MASTER / MANAGER)
+// ================================
 router.post(
   "/assign",
   auth(["master", "manager"]),
   ctrl.assignShop
 );
 
-// LIST
+// ================================
+// LIST ASSIGNED SHOPS
+// - Master → all
+// - Manager → segment wise
+// - Salesman → own
+// ================================
 router.get(
   "/list",
   auth(["master", "manager", "salesman"]),
   ctrl.getAssignedShops
 );
 
-// REMOVE
+// ================================
+// REMOVE ASSIGNED SHOP (SOFT)
+// ================================
 router.post(
   "/remove",
   auth(["master", "manager"]),
   ctrl.removeAssigned
 );
 
-// REORDER
+// ================================
+// EDIT ASSIGNED SHOP (CHANGE SALESMAN)
+// ================================
+router.post(
+  "/edit",
+  auth(["master", "manager"]),
+  ctrl.editAssignedShop
+);
+
+// ================================
+// REORDER SHOPS (DRAG & DROP)
+// ================================
 router.post(
   "/reorder",
   auth(["master", "manager"]),
   ctrl.reorderAssignedShops
 );
 
-// SALESMAN TODAY
+// ================================
+// SALESMAN TODAY STATUS
+// ================================
 router.get(
   "/salesman/today",
   auth(["salesman"]),
   ctrl.getSalesmanTodayStatus
-);
-router.post(
-  "/edit",
-  auth(["master", "manager"]),
-  ctrl.editAssignedShop
 );
 
 module.exports = router;
