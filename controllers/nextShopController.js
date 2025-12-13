@@ -25,11 +25,12 @@ exports.getNextShop = async (req, res) => {
   const shops = await AssignedShop.aggregate([
   {
     $match: {
-      $or: [
-        { salesman_id: salesman._id, status: "active" },
-        { salesman_name: salesman.name },
-      ],
-    },
+  $or: [
+    { salesman_id: salesman._id, status: "active" },
+    { salesman_name: salesman.name, status: "active" },
+  ],
+},
+
   },
 
   // ✅ ONLY reliable join = shop_name (because OLD DATA)
@@ -112,6 +113,21 @@ exports.matchShop = async (req, res) => {
       salesmanLng,
     } = req.body;
 
+    // 🔎 STEP 1: Find assigned shop FIRST
+    const doc = await AssignedShop.findOne({
+      shop_name,
+      salesman_name: req.user.name, // IMPORTANT (your data is name-based)
+      status: "active",
+    });
+
+    if (!doc) {
+      return res.status(404).json({
+        success: false,
+        message: "Assigned shop not found",
+      });
+    }
+
+    // 📏 STEP 2: Calculate distance
     const distance = calculateDistance(
       Number(salesmanLat),
       Number(salesmanLng),
@@ -121,37 +137,28 @@ exports.matchShop = async (req, res) => {
 
     const status = distance <= 50 ? "SUCCESS" : "FAILED";
 
-    // 🧾 Save history
- await History.create({
-  shopName: shop_name,               // ✅
-  salesmanName: req.user.name,       // ✅
+    // 🧾 STEP 3: SAVE HISTORY (ALL REQUIRED FIELDS)
+    await History.create({
+      shopName: shop_name,
+      salesmanName: req.user.name,
 
-  segment: doc.segment,              // from AssignedShop
-  address: doc.address || "",        // from lookup result
+      segment: doc.segment,
+      address: doc.address || "",
 
-  shopLat: Number(shopLat),
-  shopLng: Number(shopLng),
-  salesmanLat: Number(salesmanLat),
-  salesmanLng: Number(salesmanLng),
+      shopLat: Number(shopLat),
+      shopLng: Number(shopLng),
+      salesmanLat: Number(salesmanLat),
+      salesmanLng: Number(salesmanLng),
 
-  distance: Number(distance),
-  matchStatus: status,               // SUCCESS / FAILED
-  matchImage: req.file.path,          // uploads/...
-});
+      distance: Number(distance),
+      matchStatus: status,
+      matchImage: req.file.path,
+    });
 
-
-    // 🔥 SUCCESS → SOFT REMOVE assigned shop
+    // 🔥 STEP 4: REMOVE FROM NEXT SHOP IF SUCCESS
     if (status === "SUCCESS") {
-      const doc = await AssignedShop.findOne({
-        shop_name,
-        salesman_id: req.user.id,
-        status: "active",
-      });
-
-      if (doc) {
-        doc.status = "removed";
-        await doc.save();
-      }
+      doc.status = "removed";
+      await doc.save();
     }
 
     res.json({
@@ -163,6 +170,7 @@ exports.matchShop = async (req, res) => {
           : "You are far from shop (50m)",
     });
   } catch (e) {
+    console.error("MATCH ERROR:", e);
     res.status(500).json({ success: false, error: e.message });
   }
 };

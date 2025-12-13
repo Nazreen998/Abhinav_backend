@@ -23,4 +23,17 @@ router.get(
   visitController.getVisitByStatus
 );
 
+// 🔥 REQUIRED FOR FLUTTER
+router.post(
+  "/uploadPhoto",
+  auth(["salesman"]),
+  upload,
+  (req, res) => {
+    res.json({
+      success: true,
+      path: req.file.path,
+    });
+  }
+);
+
 module.exports = router;
