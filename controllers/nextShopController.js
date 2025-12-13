@@ -50,9 +50,10 @@ exports.getNextShop = async (req, res) => {
 
     // 3️⃣ SUCCESS
     return res.json({
-      success: true,
-      nextShop: shops[0],
-    });
+  success: true,
+  shops: [shop],   // 🔥 THIS IS THE KEY
+});
+
   } catch (e) {
     console.error("NEXT SHOP ERROR:", e);
     return res.status(500).json({
