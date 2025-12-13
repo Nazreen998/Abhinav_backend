@@ -10,7 +10,7 @@ exports.getNextShop = async (req, res) => {
   try {
     const { salesmanCode } = req.params;
 
-    // 🔎 Find salesman using user_id (ABHI002)
+    // 1️⃣ Find salesman
     const salesman = await User.findOne({
       user_id: salesmanCode,
       role: "salesman",
@@ -23,43 +23,61 @@ exports.getNextShop = async (req, res) => {
       });
     }
 
-    let shops = [];
+    let shop = null;
 
-    // 1️⃣ NEW DATA (salesman_id based)
-    shops = await AssignedShop.find({
+    // 2️⃣ Try NEW data (salesman_id)
+    shop = await AssignedShop.findOne({
       salesman_id: salesman._id,
-      status: "active",
-    }).sort({ sequence: 1 });
+    }).sort({ sequence: 1, createdAt: 1 });
 
-    // 2️⃣ OLD DATA FALLBACK (salesman_name based)
-    if (shops.length === 0) {
-      shops = await AssignedShop.find({
+    // 3️⃣ Fallback OLD data (salesman_name)
+    if (!shop) {
+      shop = await AssignedShop.findOne({
         salesman_name: salesman.name,
-        status: "active",
-      }).sort({ createdAt: 1 });
+      }).sort({ sequence: 1, createdAt: 1 });
     }
 
-    // ❌ Still empty
-    if (shops.length === 0) {
+    // ❌ Still nothing
+    if (!shop) {
       return res.json({
         success: false,
         message: "No assigned shops",
       });
     }
 
-    // 🔄 AUTO FIX OLD RECORD (ADD salesman_id silently)
-    if (!shops[0].salesman_id) {
-      shops[0].salesman_id = salesman._id;
-      await shops[0].save();
+    // 🔄 Auto-fix missing fields (silent)
+    let updated = false;
+
+    if (!shop.salesman_id) {
+      shop.salesman_id = salesman._id;
+      updated = true;
     }
 
-    // ✅ FINAL RESPONSE (Frontend expects this)
-    res.json({
+    if (!shop.status) {
+      shop.status = "active";
+      updated = true;
+    }
+
+    if (!shop.sequence) {
+      shop.sequence = 1;
+      updated = true;
+    }
+
+    if (updated) {
+      await shop.save();
+    }
+
+    // ✅ FINAL RESPONSE
+    return res.json({
       success: true,
-      nextShop: shops[0],
+      nextShop: shop,
     });
   } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
+    console.error("NEXT SHOP ERROR:", e);
+    return res.status(500).json({
+      success: false,
+      error: e.message,
+    });
   }
 };
 
