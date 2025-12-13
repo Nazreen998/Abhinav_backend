@@ -32,8 +32,8 @@ app.use("/api/shops", shopRoutes);
 app.use("/api/assigned", assignedRoutes);
 app.use("/api/nextshop", nextShopRoutes);
 app.use("/api/history", historyRoutes);
-app.use("/api/visits", visitRoutes);
 app.use("/api/pending", pendingRoutes);
+app.use("/api/visit", visitRoutes);
 app.use("/api/assign", nextShopRoutes);
 
 // DEFAULT ROUTE
