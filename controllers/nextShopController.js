@@ -22,7 +22,7 @@ exports.getNextShop = async (req, res) => {
       });
     }
 
-    const shops = await AssignedShop.aggregate([
+   const shops = await AssignedShop.aggregate([
   {
     $match: {
       $or: [
@@ -31,33 +31,58 @@ exports.getNextShop = async (req, res) => {
       ],
     },
   },
+
+  // 🔥 FIRST TRY: JOIN USING shop_id
   {
     $lookup: {
-      from: "shops",              // Shop collection
-      localField: "shop_id",      // AssignedShop.shop_id
-      foreignField: "_id",        // Shop._id
-      as: "shopDetails",
+      from: "shops",
+      localField: "shop_id",
+      foreignField: "_id",
+      as: "shopById",
     },
   },
-  {
-  $unwind: {
-    path: "$shopDetails",
-    preserveNullAndEmptyArrays: true,
-  },
-},
 
+  // 🔥 SECOND TRY: JOIN USING shop_name (OLD DATA)
+  {
+    $lookup: {
+      from: "shops",
+      localField: "shop_name",
+      foreignField: "shop_name",
+      as: "shopByName",
+    },
+  },
+
+  // 🔥 PICK WHICHEVER EXISTS
   {
     $addFields: {
-      lat: "$shopDetails.lat",
-      lng: "$shopDetails.lng",
-      address: "$shopDetails.address",
+      shop: {
+        $cond: [
+          { $gt: [{ $size: "$shopById" }, 0] },
+          { $arrayElemAt: ["$shopById", 0] },
+          { $arrayElemAt: ["$shopByName", 0] },
+        ],
+      },
     },
   },
+
+  // 🔥 COPY LAT/LNG
+  {
+    $addFields: {
+      lat: "$shop.lat",
+      lng: "$shop.lng",
+      address: "$shop.address",
+    },
+  },
+
+  // 🔥 CLEANUP
   {
     $project: {
-      shopDetails: 0, // remove extra
+      shopById: 0,
+      shopByName: 0,
+      shop: 0,
     },
   },
+
   { $sort: { sequence: 1 } },
 ]);
 
