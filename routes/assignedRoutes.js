@@ -58,5 +58,12 @@ router.get(
   auth(["salesman"]),
   ctrl.getSalesmanTodayStatus
 );
+// RE-ASSIGN REMOVED SHOP
+router.post(
+  "/reassign",
+  auth(["master", "manager"]),
+  ctrl.reassignRemovedShop
+);
+
 
 module.exports = router;

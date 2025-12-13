@@ -300,3 +300,69 @@ exports.getSalesmanTodayStatus = async (req, res) => {
     res.status(500).json({ success: false, error: e.message });
   }
 };
+// -------------------------------------------------
+// RE-ASSIGN REMOVED SHOP (ACTIVATE AGAIN)
+// -------------------------------------------------
+exports.reassignRemovedShop = async (req, res) => {
+  try {
+    const { shop_name, salesman_name } = req.body;
+
+    if (!shop_name || !salesman_name) {
+      return res.status(400).json({
+        success: false,
+        message: "shop_name & salesman_name required",
+      });
+    }
+
+    // Find salesman
+    const salesman = await User.findOne({
+      name: salesman_name,
+      role: "salesman",
+    });
+
+    if (!salesman) {
+      return res.status(404).json({
+        success: false,
+        message: "Salesman not found",
+      });
+    }
+
+    // Find removed assigned shop
+    const doc = await AssignedShop.findOne({
+      shop_name,
+      salesman_id: salesman._id,
+      status: "removed",
+    });
+
+    if (!doc) {
+      return res.status(404).json({
+        success: false,
+        message: "Removed shop not found",
+      });
+    }
+
+    // Get last sequence
+    const last = await AssignedShop.find({
+      salesman_id: salesman._id,
+      status: "active",
+    })
+      .sort({ sequence: -1 })
+      .limit(1);
+
+    const nextSeq = last.length ? last[0].sequence + 1 : 1;
+
+    // Reactivate
+    doc.status = "active";
+    doc.sequence = nextSeq;
+    doc.updatedAt = new Date();
+    await doc.save();
+
+    res.json({
+      success: true,
+      message: "Shop re-assigned successfully",
+    });
+  } catch (e) {
+    console.error("REASSIGN ERROR:", e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+};
