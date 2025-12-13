@@ -23,17 +23,44 @@ exports.getNextShop = async (req, res) => {
     }
 
     const shops = await AssignedShop.aggregate([
-      {
-        $match: {
-          $or: [
-            { salesman_id: salesman._id, status: "active" },
-            { salesman_name: salesman.name },
-          ],
-        },
-      },
-      { $sort: { sequence: 1, createdAt: 1 } },
-      { $limit: 1 },
-    ]);
+  {
+    $match: {
+      $or: [
+        { salesman_id: salesman._id, status: "active" },
+        { salesman_name: salesman.name },
+      ],
+    },
+  },
+  {
+    $lookup: {
+      from: "shops",              // Shop collection
+      localField: "shop_id",      // AssignedShop.shop_id
+      foreignField: "_id",        // Shop._id
+      as: "shopDetails",
+    },
+  },
+  {
+  $unwind: {
+    path: "$shopDetails",
+    preserveNullAndEmptyArrays: true,
+  },
+},
+
+  {
+    $addFields: {
+      lat: "$shopDetails.lat",
+      lng: "$shopDetails.lng",
+      address: "$shopDetails.address",
+    },
+  },
+  {
+    $project: {
+      shopDetails: 0, // remove extra
+    },
+  },
+  { $sort: { sequence: 1 } },
+]);
+
 
     if (!shops.length) {
       return res.json({
