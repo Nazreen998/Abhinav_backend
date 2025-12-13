@@ -10,7 +10,6 @@ exports.getNextShop = async (req, res) => {
   try {
     const { salesmanCode } = req.params;
 
-    // 1️⃣ Find salesman
     const salesman = await User.findOne({
       user_id: salesmanCode,
       role: "salesman",
@@ -23,8 +22,7 @@ exports.getNextShop = async (req, res) => {
       });
     }
 
-    // 2️⃣ PURE READ using AGGREGATION (NO VALIDATION POSSIBLE)
-    let shops = await AssignedShop.aggregate([
+    const shops = await AssignedShop.aggregate([
       {
         $match: {
           $or: [
@@ -33,35 +31,30 @@ exports.getNextShop = async (req, res) => {
           ],
         },
       },
-      {
-        $sort: { sequence: 1, createdAt: 1 },
-      },
-      {
-        $limit: 1,
-      },
+      { $sort: { sequence: 1, createdAt: 1 } },
+      { $limit: 1 },
     ]);
 
-    if (!shops || shops.length === 0) {
+    if (!shops.length) {
       return res.json({
         success: false,
-        message: "No assigned shops",
+        shops: [],
       });
     }
 
-    // 3️⃣ SUCCESS
+    // 🔥 IMPORTANT: send ARRAY, not object
     return res.json({
-  success: true,
-  shops: [shop],   // 🔥 THIS IS THE KEY
-});
-
+      success: true,
+      shops: shops,
+    });
   } catch (e) {
-    console.error("NEXT SHOP ERROR:", e);
     return res.status(500).json({
       success: false,
       error: e.message,
     });
   }
 };
+
 // -------------------------------------------------
 // MATCH SHOP (IMAGE + DISTANCE)
 // -------------------------------------------------
