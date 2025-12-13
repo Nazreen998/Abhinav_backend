@@ -4,13 +4,13 @@ const User = require("../models/User");
 const { calculateDistance } = require("../utils/distanceCalculator");
 
 // -------------------------------------------------
-// GET NEXT SHOP (FRONTEND COMPATIBLE)
+// GET NEXT SHOP (OLD + NEW DATA COMPATIBLE)
 // -------------------------------------------------
 exports.getNextShop = async (req, res) => {
   try {
     const { salesmanCode } = req.params;
 
-    // 🔎 Find salesman by user_id (ABHI002)
+    // 🔎 Find salesman using user_id (ABHI002)
     const salesman = await User.findOne({
       user_id: salesmanCode,
       role: "salesman",
@@ -23,12 +23,23 @@ exports.getNextShop = async (req, res) => {
       });
     }
 
-    // 🔥 Get next active shop by sequence
-    const shops = await AssignedShop.find({
+    let shops = [];
+
+    // 1️⃣ NEW DATA (salesman_id based)
+    shops = await AssignedShop.find({
       salesman_id: salesman._id,
       status: "active",
     }).sort({ sequence: 1 });
 
+    // 2️⃣ OLD DATA FALLBACK (salesman_name based)
+    if (shops.length === 0) {
+      shops = await AssignedShop.find({
+        salesman_name: salesman.name,
+        status: "active",
+      }).sort({ createdAt: 1 });
+    }
+
+    // ❌ Still empty
     if (shops.length === 0) {
       return res.json({
         success: false,
@@ -36,6 +47,13 @@ exports.getNextShop = async (req, res) => {
       });
     }
 
+    // 🔄 AUTO FIX OLD RECORD (ADD salesman_id silently)
+    if (!shops[0].salesman_id) {
+      shops[0].salesman_id = salesman._id;
+      await shops[0].save();
+    }
+
+    // ✅ FINAL RESPONSE (Frontend expects this)
     res.json({
       success: true,
       nextShop: shops[0],
@@ -75,7 +93,7 @@ exports.matchShop = async (req, res) => {
 
     const status = distance <= 50 ? "SUCCESS" : "FAILED";
 
-    // 🔥 Save history
+    // 🧾 Save history
     await History.create({
       shop_name,
       area,
@@ -89,7 +107,7 @@ exports.matchShop = async (req, res) => {
       matchImage: req.file.path,
     });
 
-    // 🔥 On success → SOFT REMOVE assigned shop
+    // 🔥 SUCCESS → SOFT REMOVE assigned shop
     if (status === "SUCCESS") {
       const doc = await AssignedShop.findOne({
         shop_name,
