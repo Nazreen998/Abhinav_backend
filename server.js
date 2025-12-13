@@ -56,6 +56,10 @@ mongoose
 // SERVER START (LAST ONLY)
 // =======================
 const PORT = process.env.PORT || 8000;
+app.get("/api/assign/test", (req, res) => {
+  res.json({ success: true, message: "ASSIGN ROUTE WORKING" });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
