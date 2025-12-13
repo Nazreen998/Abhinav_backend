@@ -122,18 +122,23 @@ exports.matchShop = async (req, res) => {
     const status = distance <= 50 ? "SUCCESS" : "FAILED";
 
     // 🧾 Save history
-    await History.create({
-      shop_name,
-      area,
-      salesman_name: req.user.name,
-      shopLat,
-      shopLng,
-      salesmanLat,
-      salesmanLng,
-      distance,
-      matchStatus: status,
-      matchImage: req.file.path,
-    });
+ await History.create({
+  shopName: shop_name,               // ✅
+  salesmanName: req.user.name,       // ✅
+
+  segment: doc.segment,              // from AssignedShop
+  address: doc.address || "",        // from lookup result
+
+  shopLat: Number(shopLat),
+  shopLng: Number(shopLng),
+  salesmanLat: Number(salesmanLat),
+  salesmanLng: Number(salesmanLng),
+
+  distance: Number(distance),
+  matchStatus: status,               // SUCCESS / FAILED
+  matchImage: req.file.path,          // uploads/...
+});
+
 
     // 🔥 SUCCESS → SOFT REMOVE assigned shop
     if (status === "SUCCESS") {
