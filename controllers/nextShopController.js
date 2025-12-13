@@ -25,19 +25,20 @@ exports.getNextShop = async (req, res) => {
 
     let shop = null;
 
-    // 2️⃣ Try NEW data (salesman_id)
+    // 2️⃣ Try NEW records (preferred)
     shop = await AssignedShop.findOne({
       salesman_id: salesman._id,
-    }).sort({ sequence: 1, createdAt: 1 });
+      status: "active",
+    }).sort({ sequence: 1 });
 
-    // 3️⃣ Fallback OLD data (salesman_name)
+    // 3️⃣ Fallback OLD records (name based, ignore status)
     if (!shop) {
       shop = await AssignedShop.findOne({
         salesman_name: salesman.name,
-      }).sort({ sequence: 1, createdAt: 1 });
+      }).sort({ createdAt: 1 });
     }
 
-    // ❌ Still nothing
+    // ❌ Nothing at all
     if (!shop) {
       return res.json({
         success: false,
@@ -45,29 +46,9 @@ exports.getNextShop = async (req, res) => {
       });
     }
 
-    // 🔄 Auto-fix missing fields (silent)
-    let updated = false;
+    // ✅ IMPORTANT: DO NOT SAVE / UPDATE HERE
+    // Just return the shop as-is
 
-    if (!shop.salesman_id) {
-      shop.salesman_id = salesman._id;
-      updated = true;
-    }
-
-    if (!shop.status) {
-      shop.status = "active";
-      updated = true;
-    }
-
-    if (!shop.sequence) {
-      shop.sequence = 1;
-      updated = true;
-    }
-
-    if (updated) {
-      await shop.save();
-    }
-
-    // ✅ FINAL RESPONSE
     return res.json({
       success: true,
       nextShop: shop,
