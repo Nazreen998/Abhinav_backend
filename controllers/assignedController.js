@@ -98,10 +98,9 @@ exports.assignShop = async (req, res) => {
     res.status(500).json({ success: false, error: e.message });
   }
 };
-
-// =================================================
-// GET ASSIGNED SHOPS (ROLE BASED)
-// =================================================
+// -------------------------------------------------
+// GET ASSIGNED SHOPS (ROLE-WISE - FIXED)
+// -------------------------------------------------
 exports.getAssignedShops = async (req, res) => {
   try {
     let filter = { status: "active" };
@@ -114,10 +113,19 @@ exports.getAssignedShops = async (req, res) => {
       filter.segment = req.user.segment;
     }
 
-    const assigned = await AssignedShop.find(filter).sort({ sequence: 1 });
+    // 🔥 MASTER SHOULD SEE ALL (NO SEGMENT FILTER)
+    if (req.user.role === "master") {
+      // no extra filter
+    }
 
-    res.json({ success: true, assigned });
+    const assigned = await AssignedShop.find(filter).sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      assigned,
+    });
   } catch (e) {
+    console.error("GET ASSIGNED ERROR:", e);
     res.status(500).json({ success: false, error: e.message });
   }
 };
