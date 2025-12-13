@@ -22,7 +22,7 @@ exports.getNextShop = async (req, res) => {
       });
     }
 
-   const shops = await AssignedShop.aggregate([
+  const shops = await AssignedShop.aggregate([
   {
     $match: {
       $or: [
@@ -32,53 +32,37 @@ exports.getNextShop = async (req, res) => {
     },
   },
 
-  // 🔥 FIRST TRY: JOIN USING shop_id
-  {
-    $lookup: {
-      from: "shops",
-      localField: "shop_id",
-      foreignField: "_id",
-      as: "shopById",
-    },
-  },
-
-  // 🔥 SECOND TRY: JOIN USING shop_name (OLD DATA)
+  // ✅ ONLY reliable join = shop_name (because OLD DATA)
   {
     $lookup: {
       from: "shops",
       localField: "shop_name",
       foreignField: "shop_name",
-      as: "shopByName",
+      as: "shop",
     },
   },
 
-  // 🔥 PICK WHICHEVER EXISTS
   {
-    $addFields: {
-      shop: {
-        $cond: [
-          { $gt: [{ $size: "$shopById" }, 0] },
-          { $arrayElemAt: ["$shopById", 0] },
-          { $arrayElemAt: ["$shopByName", 0] },
-        ],
-      },
+    $unwind: {
+      path: "$shop",
+      preserveNullAndEmptyArrays: true,
     },
   },
 
-  // 🔥 COPY LAT/LNG
+  // ✅ NORMALIZE FIELDS
   {
     $addFields: {
       lat: "$shop.lat",
       lng: "$shop.lng",
-      address: "$shop.address",
+      address: {
+        $ifNull: ["$shop.address", "$shop.shopAddress"],
+      },
     },
   },
 
-  // 🔥 CLEANUP
+  // ✅ CLEAN RESPONSE
   {
     $project: {
-      shopById: 0,
-      shopByName: 0,
       shop: 0,
     },
   },
