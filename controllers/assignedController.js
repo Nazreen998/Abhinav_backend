@@ -2,6 +2,7 @@ const AssignedShop = require("../models/AssignedShop");
 const VisitLog = require("../models/VisitLog");
 const Shop = require("../models/Shop");
 const User = require("../models/User");
+const safeString = (v) => (v === null || v === undefined ? "" : v);
 
 // 🇮🇳 IST date helper
 const getISTDate = () => {
@@ -119,11 +120,31 @@ exports.getAssignedShops = async (req, res) => {
     }
 
     const assigned = await AssignedShop.find(filter).sort({ createdAt: -1 });
+    const safeAssigned = assigned.map(a => ({
+  _id: a._id,
 
-    res.json({
-      success: true,
-      assigned,
-    });
+  shop_id: a.shop_id,
+  shop_name: safeString(a.shop_name),
+
+  salesman_id: a.salesman_id,
+  salesman_name: safeString(a.salesman_name),
+
+  segment: safeString(a.segment),
+  sequence: a.sequence ?? 0,
+
+  assigned_by_id: a.assigned_by_id,
+  assigned_by_name: safeString(a.assigned_by_name),
+  assigned_by_role: safeString(a.assigned_by_role),
+
+  status: safeString(a.status),
+  createdAt: a.createdAt,
+}));
+
+res.json({
+  success: true,
+  assigned: safeAssigned,
+});
+
   } catch (e) {
     console.error("GET ASSIGNED ERROR:", e);
     res.status(500).json({ success: false, error: e.message });
@@ -298,12 +319,22 @@ exports.getSalesmanTodayStatus = async (req, res) => {
       visited.includes(a.shop_name) ? completed.push(a) : pending.push(a);
     }
 
-    res.json({
-      success: true,
-      today: pending,
-      pending,
-      completed,
-    });
+    const mapSafe = (arr) =>
+  arr.map(a => ({
+    _id: a._id,
+    shop_name: safeString(a.shop_name),
+    salesman_name: safeString(a.salesman_name),
+    segment: safeString(a.segment),
+    sequence: a.sequence ?? 0,
+  }));
+
+res.json({
+  success: true,
+  today: mapSafe(pending),
+  pending: mapSafe(pending),
+  completed: mapSafe(completed),
+});
+
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
