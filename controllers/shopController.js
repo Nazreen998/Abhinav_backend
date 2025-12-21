@@ -1,21 +1,40 @@
 const Shop = require("../models/Shop");
 
-// ⭐ LIST SHOPS (FIXED – THIS IS THE KEY)
+const safeString = (v) => (v === null || v === undefined ? "" : v);
+
+// ⭐ LIST SHOPS (BACKWARD COMPATIBLE FOR OLD FLUTTER APK)
 exports.listShops = async (req, res) => {
   try {
-    // ✅ Include shops where isDeleted is false OR field not present
     const shops = await Shop.find({
-      $or: [
-        { isDeleted: false },
-        { isDeleted: { $exists: false } }
-      ]
+      $or: [{ isDeleted: false }, { isDeleted: { $exists: false } }],
     }).sort({ createdAt: -1 });
 
     console.log("SHOP COUNT =", shops.length);
 
+    // 🔥 IMPORTANT: SAFE + COMPATIBLE RESPONSE
+    const safeShops = shops.map((s) => ({
+      // ORIGINAL FIELDS (KEEP)
+      _id: s._id,
+      shopName: safeString(s.shopName),
+      area: safeString(s.area),
+      segment: safeString(s.segment),
+
+      // 🔥 REQUIRED BY OLD FLUTTER
+      shopId: s._id,
+      shop_name: safeString(s.shopName),
+      shopNameDisplay: safeString(s.shopName),
+
+      // 🔥 MAIN CRASH FIX (address must be STRING)
+      address: safeString(s.shopAddress),
+
+      // OPTIONAL (safe)
+      ownerName: safeString(s.ownerName),
+      contactNumber: safeString(s.contactNumber),
+    }));
+
     res.json({
       success: true,
-      shops,
+      shops: safeShops,
     });
   } catch (err) {
     console.error("LIST SHOP ERROR:", err);
