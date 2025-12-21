@@ -2,6 +2,7 @@ const AssignedShop = require("../models/AssignedShop");
 const VisitLog = require("../models/VisitLog");
 const Shop = require("../models/Shop");
 const User = require("../models/User");
+
 const safeString = (v) => (v === null || v === undefined ? "" : v);
 
 // 🇮🇳 IST date helper
@@ -25,7 +26,6 @@ exports.assignShop = async (req, res) => {
       });
     }
 
-    // Find shop
     const shop = await Shop.findOne({ shop_name, isDeleted: false });
     if (!shop) {
       return res.status(404).json({
@@ -34,7 +34,6 @@ exports.assignShop = async (req, res) => {
       });
     }
 
-    // Find salesman
     const salesman = await User.findOne({
       name: salesman_name,
       role: "salesman",
@@ -47,7 +46,6 @@ exports.assignShop = async (req, res) => {
       });
     }
 
-    // Segment validation
     if (shop.segment !== salesman.segment) {
       return res.status(400).json({
         success: false,
@@ -55,7 +53,6 @@ exports.assignShop = async (req, res) => {
       });
     }
 
-    // Duplicate active check
     const exists = await AssignedShop.findOne({
       shop_name,
       salesman_name,
@@ -66,7 +63,6 @@ exports.assignShop = async (req, res) => {
       return res.json({ success: true });
     }
 
-    // Sequence calculation
     const last = await AssignedShop.find({
       salesman_name,
       status: "active",
@@ -99,8 +95,9 @@ exports.assignShop = async (req, res) => {
     res.status(500).json({ success: false, error: e.message });
   }
 };
+
 // -------------------------------------------------
-// GET ASSIGNED SHOPS (ROLE-WISE - FIXED)
+// GET ASSIGNED SHOPS (ROLE-WISE)
 // -------------------------------------------------
 exports.getAssignedShops = async (req, res) => {
   try {
@@ -114,37 +111,32 @@ exports.getAssignedShops = async (req, res) => {
       filter.segment = req.user.segment;
     }
 
-    // 🔥 MASTER SHOULD SEE ALL (NO SEGMENT FILTER)
-    if (req.user.role === "master") {
-      // no extra filter
-    }
-
     const assigned = await AssignedShop.find(filter).sort({ createdAt: -1 });
-    const safeAssigned = assigned.map(a => ({
-  _id: a._id,
 
-  shop_id: a.shop_id,
-  shop_name: safeString(a.shop_name),
+    const safeAssigned = assigned.map((a) => ({
+      // ORIGINAL FIELDS (DO NOT REMOVE)
+      _id: a._id,
+      shop_id: a.shop_id,
+      shop_name: safeString(a.shop_name),
+      salesman_id: a.salesman_id,
+      salesman_name: safeString(a.salesman_name),
+      segment: safeString(a.segment),
+      sequence: a.sequence ?? 0,
+      assigned_by_id: a.assigned_by_id,
+      assigned_by_name: safeString(a.assigned_by_name),
+      assigned_by_role: safeString(a.assigned_by_role),
+      status: safeString(a.status),
+      createdAt: a.createdAt,
 
-  salesman_id: a.salesman_id,
-  salesman_name: safeString(a.salesman_name),
+      // 🔥 EXTRA FIELDS FOR OLD FLUTTER APK (BACKWARD COMPATIBLE)
+      shopId: a._id,
+      shopName: safeString(a.shop_name),
+    }));
 
-  segment: safeString(a.segment),
-  sequence: a.sequence ?? 0,
-
-  assigned_by_id: a.assigned_by_id,
-  assigned_by_name: safeString(a.assigned_by_name),
-  assigned_by_role: safeString(a.assigned_by_role),
-
-  status: safeString(a.status),
-  createdAt: a.createdAt,
-}));
-
-res.json({
-  success: true,
-  assigned: safeAssigned,
-});
-
+    res.json({
+      success: true,
+      assigned: safeAssigned,
+    });
   } catch (e) {
     console.error("GET ASSIGNED ERROR:", e);
     res.status(500).json({ success: false, error: e.message });
@@ -152,32 +144,21 @@ res.json({
 };
 
 // =================================================
-// REMOVE ASSIGNED SHOP (SOFT DELETE + RESEQUENCE)
+// REMOVE ASSIGNED SHOP
 // =================================================
 exports.removeAssigned = async (req, res) => {
   try {
     const { assign_id } = req.body;
 
-    if (!assign_id) {
-      return res.status(400).json({
-        success: false,
-        message: "assign_id required",
-      });
-    }
-
     const doc = await AssignedShop.findById(assign_id);
     if (!doc) {
-      return res.status(404).json({
-        success: false,
-        message: "Assigned shop not found",
-      });
+      return res.status(404).json({ success: false });
     }
 
     doc.status = "removed";
     doc.updatedAt = getISTDate();
     await doc.save();
 
-    // Resequence remaining
     const remaining = await AssignedShop.find({
       salesman_id: doc.salesman_id,
       status: "active",
@@ -191,42 +172,22 @@ exports.removeAssigned = async (req, res) => {
 
     res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
+    res.status(500).json({ success: false });
   }
 };
 
 // =================================================
-// EDIT ASSIGNED SHOP (CHANGE SALESMAN)
+// EDIT ASSIGNED SHOP
 // =================================================
 exports.editAssignedShop = async (req, res) => {
   try {
     const { assign_id, new_salesman_id } = req.body;
 
-    if (!assign_id || !new_salesman_id) {
-      return res.status(400).json({
-        success: false,
-        message: "assign_id & new_salesman_id required",
-      });
-    }
-
     const doc = await AssignedShop.findById(assign_id);
-    if (!doc) {
-      return res.status(404).json({ success: false });
-    }
+    if (!doc) return res.status(404).json({ success: false });
 
     const newSalesman = await User.findById(new_salesman_id);
-    if (!newSalesman) {
-      return res.status(404).json({ success: false });
-    }
-
-    if (newSalesman.segment !== doc.segment) {
-      return res.status(400).json({
-        success: false,
-        message: "Segment mismatch",
-      });
-    }
-
-    const oldSalesmanId = doc.salesman_id;
+    if (!newSalesman) return res.status(404).json({ success: false });
 
     const last = await AssignedShop.find({
       salesman_id: newSalesman._id,
@@ -235,56 +196,15 @@ exports.editAssignedShop = async (req, res) => {
       .sort({ sequence: -1 })
       .limit(1);
 
-    const nextSeq = last.length ? last[0].sequence + 1 : 1;
-
     doc.salesman_id = newSalesman._id;
     doc.salesman_name = newSalesman.name;
-    doc.sequence = nextSeq;
+    doc.sequence = last.length ? last[0].sequence + 1 : 1;
     doc.updatedAt = getISTDate();
     await doc.save();
 
-    // Resequence old salesman
-    const oldRemaining = await AssignedShop.find({
-      salesman_id: oldSalesmanId,
-      status: "active",
-    }).sort({ sequence: 1 });
-
-    for (let i = 0; i < oldRemaining.length; i++) {
-      oldRemaining[i].sequence = i + 1;
-      oldRemaining[i].updatedAt = getISTDate();
-      await oldRemaining[i].save();
-    }
-
     res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
-  }
-};
-
-// =================================================
-// REORDER SHOPS (DRAG & DROP)
-// =================================================
-exports.reorderAssignedShops = async (req, res) => {
-  try {
-    const { salesman_id, shops } = req.body;
-
-    if (!salesman_id || !Array.isArray(shops)) {
-      return res.status(400).json({
-        success: false,
-        message: "salesman_id & shops[] required",
-      });
-    }
-
-    for (const s of shops) {
-      await AssignedShop.findOneAndUpdate(
-        { _id: s.assign_id, salesman_id, status: "active" },
-        { sequence: s.sequence, updatedAt: getISTDate() }
-      );
-    }
-
-    res.json({ success: true });
-  } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
+    res.status(500).json({ success: false });
   }
 };
 
@@ -293,20 +213,17 @@ exports.reorderAssignedShops = async (req, res) => {
 // =================================================
 exports.getSalesmanTodayStatus = async (req, res) => {
   try {
-    const salesmanId = req.user.id;
-    const salesmanName = req.user.name;
-
     const today = new Date().toLocaleDateString("en-CA", {
       timeZone: "Asia/Kolkata",
     });
 
     const assigned = await AssignedShop.find({
-      salesman_id: salesmanId,
+      salesman_id: req.user.id,
       status: "active",
     }).sort({ sequence: 1 });
 
     const visits = await VisitLog.find({
-      salesman: salesmanName,
+      salesman: req.user.name,
       date: today,
     });
 
@@ -320,67 +237,45 @@ exports.getSalesmanTodayStatus = async (req, res) => {
     }
 
     const mapSafe = (arr) =>
-  arr.map(a => ({
-    _id: a._id,
-    shop_name: safeString(a.shop_name),
-    salesman_name: safeString(a.salesman_name),
-    segment: safeString(a.segment),
-    sequence: a.sequence ?? 0,
-  }));
+      arr.map((a) => ({
+        _id: a._id,
+        shop_name: safeString(a.shop_name),
+        shopId: a._id,
+        shopName: safeString(a.shop_name),
+        salesman_name: safeString(a.salesman_name),
+        segment: safeString(a.segment),
+        sequence: a.sequence ?? 0,
+      }));
 
-res.json({
-  success: true,
-  today: mapSafe(pending),
-  pending: mapSafe(pending),
-  completed: mapSafe(completed),
-});
-
+    res.json({
+      success: true,
+      today: mapSafe(pending),
+      pending: mapSafe(pending),
+      completed: mapSafe(completed),
+    });
   } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
+    res.status(500).json({ success: false });
   }
 };
-// -------------------------------------------------
-// RE-ASSIGN REMOVED SHOP (ACTIVATE AGAIN)
-// -------------------------------------------------
+
+// =================================================
+// REASSIGN REMOVED SHOP
+// =================================================
 exports.reassignRemovedShop = async (req, res) => {
   try {
     const { shop_name, salesman_name } = req.body;
 
-    if (!shop_name || !salesman_name) {
-      return res.status(400).json({
-        success: false,
-        message: "shop_name & salesman_name required",
-      });
-    }
-
-    // Find salesman
     const salesman = await User.findOne({
       name: salesman_name,
       role: "salesman",
     });
 
-    if (!salesman) {
-      return res.status(404).json({
-        success: false,
-        message: "Salesman not found",
-      });
-    }
-
-    // Find removed assigned shop
     const doc = await AssignedShop.findOne({
       shop_name,
       salesman_id: salesman._id,
       status: "removed",
     });
 
-    if (!doc) {
-      return res.status(404).json({
-        success: false,
-        message: "Removed shop not found",
-      });
-    }
-
-    // Get last sequence
     const last = await AssignedShop.find({
       salesman_id: salesman._id,
       status: "active",
@@ -388,20 +283,13 @@ exports.reassignRemovedShop = async (req, res) => {
       .sort({ sequence: -1 })
       .limit(1);
 
-    const nextSeq = last.length ? last[0].sequence + 1 : 1;
-
-    // Reactivate
     doc.status = "active";
-    doc.sequence = nextSeq;
+    doc.sequence = last.length ? last[0].sequence + 1 : 1;
     doc.updatedAt = new Date();
     await doc.save();
 
-    res.json({
-      success: true,
-      message: "Shop re-assigned successfully",
-    });
+    res.json({ success: true });
   } catch (e) {
-    console.error("REASSIGN ERROR:", e);
-    res.status(500).json({ success: false, error: e.message });
+    res.status(500).json({ success: false });
   }
 };
