@@ -1,39 +1,56 @@
 const VisitLog = require("../models/VisitLog");
 
 // --------------------------------------
-// SAVE VISIT
+// SAVE VISIT (FINAL FIXED)
 // --------------------------------------
 exports.saveVisit = async (req, res) => {
   try {
     const {
-      salesman_name,
       salesman_id,
-      shop_name,
+      salesman_name,
       shop_id,
-      visit_date,
-      visit_time,
-      datetime,
+      shop_name,
       photo_url,
       distance,
       result,
+      segment,
+      lat,
+      lng,
+      visit_time,
     } = req.body;
 
+    if (!salesman_id || !shop_id) {
+      return res.status(400).json({
+        success: false,
+        message: "salesman_id & shop_id required",
+      });
+    }
+
+    const now = new Date();
+    const visit_date = now.toLocaleDateString("en-CA", {
+      timeZone: "Asia/Kolkata",
+    });
+
     const visit = await VisitLog.create({
-      salesman_name,
       salesman_id,
-      shop_name,
+      salesman_name,
       shop_id,
-      visit_date,
-      visit_time,
-      datetime,
+      shop_name,
       photo_url,
       distance,
       result,
+      segment,
+      lat,
+      lng,
+      visit_time: visit_time || now.toISOString(),
+      visit_date,
+      datetime: now,
       status: "completed",
     });
 
     res.json({ success: true, visit });
   } catch (e) {
+    console.error("SAVE VISIT ERROR:", e);
     res.status(500).json({ success: false, error: e.message });
   }
 };
@@ -58,13 +75,13 @@ exports.getVisits = async (req, res) => {
 };
 
 // --------------------------------------
-// TODAY / PENDING / COMPLETED
+// STATUS FILTER
 // --------------------------------------
 exports.getVisitByStatus = async (req, res) => {
   try {
     const { status } = req.params;
+    let filter = { status };
 
-    const filter = { status };
     if (req.user.role === "salesman") {
       filter.salesman_id = req.user.user_id;
     }
