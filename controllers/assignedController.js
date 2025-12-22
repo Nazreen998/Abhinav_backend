@@ -114,7 +114,6 @@ exports.getAssignedShops = async (req, res) => {
     const assigned = await AssignedShop.find(filter).sort({ createdAt: -1 });
 
     const safeAssigned = assigned.map((a) => ({
-      // ORIGINAL FIELDS (DO NOT REMOVE)
       _id: a._id,
       shop_id: a.shop_id,
       shop_name: safeString(a.shop_name),
@@ -128,7 +127,6 @@ exports.getAssignedShops = async (req, res) => {
       status: safeString(a.status),
       createdAt: a.createdAt,
 
-      // 🔥 EXTRA FIELDS FOR OLD FLUTTER APK (BACKWARD COMPATIBLE)
       shopId: a._id,
       shopName: safeString(a.shop_name),
     }));
@@ -177,39 +175,7 @@ exports.removeAssigned = async (req, res) => {
 };
 
 // =================================================
-// EDIT ASSIGNED SHOP
-// =================================================
-exports.editAssignedShop = async (req, res) => {
-  try {
-    const { assign_id, new_salesman_id } = req.body;
-
-    const doc = await AssignedShop.findById(assign_id);
-    if (!doc) return res.status(404).json({ success: false });
-
-    const newSalesman = await User.findById(new_salesman_id);
-    if (!newSalesman) return res.status(404).json({ success: false });
-
-    const last = await AssignedShop.find({
-      salesman_id: newSalesman._id,
-      status: "active",
-    })
-      .sort({ sequence: -1 })
-      .limit(1);
-
-    doc.salesman_id = newSalesman._id;
-    doc.salesman_name = newSalesman.name;
-    doc.sequence = last.length ? last[0].sequence + 1 : 1;
-    doc.updatedAt = getISTDate();
-    await doc.save();
-
-    res.json({ success: true });
-  } catch (e) {
-    res.status(500).json({ success: false });
-  }
-};
-
-// =================================================
-// SALESMAN TODAY STATUS
+// SALESMAN TODAY STATUS (FIXED)
 // =================================================
 exports.getSalesmanTodayStatus = async (req, res) => {
   try {
@@ -220,7 +186,7 @@ exports.getSalesmanTodayStatus = async (req, res) => {
     const assigned = await AssignedShop.find({
       salesman_id: req.user.id,
       status: "active",
-    }).sort({ sequence: 1 });
+    }).populate("shop_id");
 
     const visits = await VisitLog.find({
       salesman: req.user.name,
@@ -245,6 +211,9 @@ exports.getSalesmanTodayStatus = async (req, res) => {
         salesman_name: safeString(a.salesman_name),
         segment: safeString(a.segment),
         sequence: a.sequence ?? 0,
+
+        lat: a.shop_id?.lat ?? 0,
+        lng: a.shop_id?.lng ?? 0,
       }));
 
     res.json({
@@ -259,37 +228,41 @@ exports.getSalesmanTodayStatus = async (req, res) => {
 };
 
 // =================================================
-// REASSIGN REMOVED SHOP
+// NEXT SHOPS (🔥 MAIN FIX FOR NEXT SHOP PAGE)
 // =================================================
-exports.reassignRemovedShop = async (req, res) => {
+exports.getNextShops = async (req, res) => {
   try {
-    const { shop_name, salesman_name } = req.body;
+    const { id } = req.params; // salesman user_id
 
-    const salesman = await User.findOne({
-      name: salesman_name,
-      role: "salesman",
-    });
+    const salesman = await User.findOne({ user_id: id });
+    if (!salesman) {
+      return res.status(404).json({ success: false });
+    }
 
-    const doc = await AssignedShop.findOne({
-      shop_name,
-      salesman_id: salesman._id,
-      status: "removed",
-    });
-
-    const last = await AssignedShop.find({
+    const assigned = await AssignedShop.find({
       salesman_id: salesman._id,
       status: "active",
     })
-      .sort({ sequence: -1 })
-      .limit(1);
+      .populate("shop_id")
+      .sort({ sequence: 1 });
 
-    doc.status = "active";
-    doc.sequence = last.length ? last[0].sequence + 1 : 1;
-    doc.updatedAt = new Date();
-    await doc.save();
+    const shops = assigned.map((a) => ({
+      _id: a._id,
+      shop_id: a.shop_id?.shop_id ?? "",
+      shop_name: a.shop_id?.shop_name ?? a.shop_name,
+      address: a.shop_id?.address ?? "",
+      lat: a.shop_id?.lat ?? 0,
+      lng: a.shop_id?.lng ?? 0,
+      segment: a.segment,
+      sequence: a.sequence,
+    }));
 
-    res.json({ success: true });
+    res.json({
+      success: true,
+      shops,
+    });
   } catch (e) {
+    console.error("NEXT SHOP ERROR:", e);
     res.status(500).json({ success: false });
   }
 };
