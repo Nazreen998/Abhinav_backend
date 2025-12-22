@@ -1,5 +1,4 @@
 const multer = require("multer");
-const path = require("path");
 const fs = require("fs");
 
 // ensure folder exists
@@ -23,11 +22,13 @@ const fileFilter = (req, file, cb) => {
   if (allowed.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error("Invalid image format"), false);
+    cb(null, false); // ❗ DO NOT THROW ERROR
   }
 };
 
-module.exports = multer({
+const upload = multer({
   storage,
   fileFilter,
-}).single("matchImage");   // ✅ MUST MATCH FLUTTER
+});
+
+module.exports = upload.single("matchImage"); // ✅ FINAL
