@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const path = require("path");
 
+// ROUTES
 const userRoutes = require("./routes/userRoutes");
 const shopRoutes = require("./routes/shopRoutes");
 const assignedRoutes = require("./routes/assignedRoutes");
@@ -21,24 +22,37 @@ app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// STATIC
+// =======================
+// STATIC FILES (🔥 VERY IMPORTANT)
+// =======================
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // =======================
-// ROUTES  (⚠️ ALL BEFORE listen)
+// ROUTES (⚠️ ALL BEFORE listen)
 // =======================
 app.use("/api/users", userRoutes);
 app.use("/api/shops", shopRoutes);
 app.use("/api/assigned", assignedRoutes);
-app.use("/api/nextshop", nextShopRoutes);
+app.use("/api/nextshop", nextShopRoutes);     // ✅ ONLY HERE
 app.use("/api/history", historyRoutes);
 app.use("/api/pending", pendingRoutes);
 app.use("/api/visit", visitRoutes);
-app.use("/api/assign", nextShopRoutes);
 
+// ❌ DO NOT mount nextShopRoutes again
+// app.use("/api/assign", nextShopRoutes);   ❌ REMOVED (THIS WAS THE BUG)
+
+// =======================
 // DEFAULT ROUTE
+// =======================
 app.get("/", (req, res) => {
   res.send("Backend Running Successfully!");
+});
+
+// =======================
+// TEST ROUTE (KEEP AS IS)
+// =======================
+app.get("/api/assign/test", (req, res) => {
+  res.json({ success: true, message: "ASSIGN ROUTE WORKING" });
 });
 
 // =======================
@@ -53,12 +67,9 @@ mongoose
   .catch((err) => console.log("MongoDB Connection Error:", err));
 
 // =======================
-// SERVER START (LAST ONLY)
+// SERVER START (🔥 MUST BE LAST)
 // =======================
 const PORT = process.env.PORT || 8000;
-app.get("/api/assign/test", (req, res) => {
-  res.json({ success: true, message: "ASSIGN ROUTE WORKING" });
-});
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
