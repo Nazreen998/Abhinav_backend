@@ -8,9 +8,8 @@ const visitLogSchema = new mongoose.Schema(
     shop_name: { type: String, required: true },
     shop_id: { type: String, required: true },
 
-    visit_date: { type: String, required: true }, // DD/MM/YYYY
+    visit_date: { type: String, required: true }, // YYYY-MM-DD
     visit_time: { type: String, required: true }, // HH:mm:ss
-
     datetime: { type: Date, required: true },
 
     photo_url: { type: String, required: true },
@@ -21,12 +20,10 @@ const visitLogSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: ["today", "pending", "completed"],
-      default: "today",
+      default: "completed",
     },
   },
-  {
-    timestamps: true, // IST conversion later
-  }
+  { timestamps: true }
 );
 
 module.exports = mongoose.model("VisitLog", visitLogSchema);

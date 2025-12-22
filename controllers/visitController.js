@@ -1,7 +1,7 @@
 const VisitLog = require("../models/VisitLog");
 
 // --------------------------------------
-// SAVE VISIT (FINAL FIXED)
+// SAVE VISIT ✅ FINAL & SAFE
 // --------------------------------------
 exports.saveVisit = async (req, res) => {
   try {
@@ -16,7 +16,6 @@ exports.saveVisit = async (req, res) => {
       segment,
       lat,
       lng,
-      visit_time,
     } = req.body;
 
     if (!salesman_id || !shop_id) {
@@ -27,9 +26,15 @@ exports.saveVisit = async (req, res) => {
     }
 
     const now = new Date();
+
     const visit_date = now.toLocaleDateString("en-CA", {
       timeZone: "Asia/Kolkata",
-    });
+    }); // YYYY-MM-DD
+
+    const visit_time = now.toLocaleTimeString("en-GB", {
+      timeZone: "Asia/Kolkata",
+      hour12: false,
+    }); // HH:mm:ss
 
     const visit = await VisitLog.create({
       salesman_id,
@@ -42,8 +47,8 @@ exports.saveVisit = async (req, res) => {
       segment,
       lat,
       lng,
-      visit_time: visit_time || now.toISOString(),
       visit_date,
+      visit_time,
       datetime: now,
       status: "completed",
     });
@@ -70,7 +75,7 @@ exports.getVisits = async (req, res) => {
 
     res.json({ success: true, visits });
   } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
+    res.status(500).json({ success: false });
   }
 };
 
@@ -89,6 +94,6 @@ exports.getVisitByStatus = async (req, res) => {
     const visits = await VisitLog.find(filter).sort({ datetime: -1 });
     res.json({ success: true, visits });
   } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
+    res.status(500).json({ success: false });
   }
 };
