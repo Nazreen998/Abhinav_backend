@@ -189,8 +189,8 @@ exports.getSalesmanTodayStatus = async (req, res) => {
     }).populate("shop_id");
 
     const visits = await VisitLog.find({
-      salesman: req.user.name,
-      date: today,
+      salesman_name: req.user.name,
+       visit_date: today,
     });
 
     const visited = visits.map((v) => v.shop_name);
@@ -246,16 +246,22 @@ exports.getNextShops = async (req, res) => {
       .populate("shop_id")
       .sort({ sequence: 1 });
 
-    const shops = assigned.map((a) => ({
-      _id: a._id,
-      shop_id: a.shop_id?.shop_id ?? "",
-      shop_name: a.shop_id?.shop_name ?? a.shop_name,
-      address: a.shop_id?.address ?? "",
-      lat: a.shop_id?.lat ?? 0,
-      lng: a.shop_id?.lng ?? 0,
-      segment: a.segment,
-      sequence: a.sequence,
-    }));
+    const mapSafe = (arr) =>
+  arr.map((a) => ({
+    _id: a._id,
+
+    shop_id: a.shop_id?.shop_id ?? "",
+    shop_name: a.shop_id?.shop_name ?? a.shop_name,
+    address: a.shop_id?.address ?? "",
+
+    salesman_name: safeString(a.salesman_name),
+    segment: safeString(a.segment),
+    sequence: a.sequence ?? 0,
+
+    lat: a.shop_id?.lat ?? 0,
+    lng: a.shop_id?.lng ?? 0,
+  }));
+
 
     res.json({
       success: true,
