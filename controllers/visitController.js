@@ -3,8 +3,6 @@ const VisitLog = require("../models/VisitLog");
 exports.saveVisit = async (req, res) => {
   try {
     const {
-      salesman_id,
-      salesman_name,
       shop_id,
       shop_name,
       photo_url,
@@ -15,10 +13,14 @@ exports.saveVisit = async (req, res) => {
       lng,
     } = req.body;
 
-    if (!salesman_id || !shop_id) {
+    // ✅ salesman comes from token
+    const salesman_id = req.user.user_id;
+    const salesman_name = req.user.name;
+
+    if (!shop_id) {
       return res.status(400).json({
         success: false,
-        message: "salesman_id & shop_id required",
+        message: "shop_id required",
       });
     }
 
