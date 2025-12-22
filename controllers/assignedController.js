@@ -266,3 +266,92 @@ exports.getNextShops = async (req, res) => {
     res.status(500).json({ success: false });
   }
 };
+// =================================================
+// REORDER ASSIGNED SHOPS (DRAG & DROP)
+// =================================================
+exports.reorderAssignedShops = async (req, res) => {
+  try {
+    const { salesman_id, shops } = req.body;
+
+    if (!salesman_id || !Array.isArray(shops)) {
+      return res.status(400).json({ success: false });
+    }
+
+    for (let i = 0; i < shops.length; i++) {
+      await AssignedShop.findByIdAndUpdate(
+        shops[i].assign_id,
+        {
+          sequence: shops[i].sequence,
+          updatedAt: getISTDate(),
+        },
+        { new: true }
+      );
+    }
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error("REORDER ERROR:", e);
+    res.status(500).json({ success: false });
+  }
+};
+// =================================================
+// EDIT ASSIGNED SHOP (CHANGE SALESMAN)
+// =================================================
+exports.editAssignedShop = async (req, res) => {
+  try {
+    const { assign_id, new_salesman_id } = req.body;
+
+    const doc = await AssignedShop.findById(assign_id);
+    if (!doc) {
+      return res.status(404).json({ success: false });
+    }
+
+    const newSalesman = await User.findById(new_salesman_id);
+    if (!newSalesman) {
+      return res.status(404).json({ success: false });
+    }
+
+    doc.salesman_id = newSalesman._id;
+    doc.salesman_name = newSalesman.name;
+    doc.updatedAt = getISTDate();
+
+    await doc.save();
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error("EDIT ASSIGNED ERROR:", e);
+    res.status(500).json({ success: false });
+  }
+};
+
+// =================================================
+// RE-ASSIGN REMOVED SHOP
+// =================================================
+exports.reassignRemovedShop = async (req, res) => {
+  try {
+    const { assign_id } = req.body;
+
+    const doc = await AssignedShop.findById(assign_id);
+    if (!doc) {
+      return res.status(404).json({ success: false });
+    }
+
+    const last = await AssignedShop.find({
+      salesman_id: doc.salesman_id,
+      status: "active",
+    })
+      .sort({ sequence: -1 })
+      .limit(1);
+
+    doc.status = "active";
+    doc.sequence = last.length ? last[0].sequence + 1 : 1;
+    doc.updatedAt = getISTDate();
+
+    await doc.save();
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error("REASSIGN ERROR:", e);
+    res.status(500).json({ success: false });
+  }
+};
