@@ -1,40 +1,37 @@
 const router = require("express").Router();
 const auth = require("../middleware/auth");
 const upload = require("../middleware/uploadMatchImage");
-const visitController = require("../controllers/visitController");
+const ctrl = require("../controllers/visitController");
 
-// 🔥 PHOTO UPLOAD
+// PHOTO UPLOAD
 router.post(
   "/uploadPhoto",
   auth(["salesman"]),
-  (req, res, next) => {
-    upload(req, res, function (err) {
-      if (err) {
-        console.error("MULTER ERROR:", err);
-        return res.status(400).json({
-          success: false,
-          message: err.message || "Upload failed",
-        });
-      }
-      next();
-    });
-  },
+  upload,
   (req, res) => {
     if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: "No file uploaded",
-      });
+      return res.status(400).json({ success: false });
     }
 
     res.json({
       success: true,
-      path: req.file.path,
+      path: `/uploads/history/${req.file.filename}`,
     });
   }
 );
 
-router.post("/save", auth(["salesman"]), visitController.saveVisit);
-router.get("/list", auth(["master", "manager", "salesman"]), visitController.getVisits);
+// SAVE VISIT
+router.post(
+  "/save",
+  auth(["salesman"]),
+  ctrl.saveVisit
+);
+
+// LIST
+router.get(
+  "/list",
+  auth(["master", "manager", "salesman"]),
+  ctrl.getVisits
+);
 
 module.exports = router;

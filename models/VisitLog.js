@@ -2,20 +2,25 @@ const mongoose = require("mongoose");
 
 const visitLogSchema = new mongoose.Schema(
   {
-    salesman_name: { type: String, required: true },
     salesman_id: { type: String, required: true },
+    salesman_name: { type: String, required: true },
 
-    shop_name: { type: String, required: true },
     shop_id: { type: String, required: true },
+    shop_name: { type: String, required: true },
 
-    visit_date: { type: String, required: true }, // YYYY-MM-DD
-    visit_time: { type: String, required: true }, // HH:mm:ss
+    visit_date: { type: String, required: true },
+    visit_time: { type: String, required: true },
+
     datetime: { type: Date, required: true },
 
     photo_url: { type: String, required: true },
-
     distance: { type: Number, default: 0 },
+
     result: { type: String, enum: ["match", "mismatch"], default: "match" },
+    segment: { type: String },
+
+    lat: { type: Number },
+    lng: { type: Number },
 
     status: {
       type: String,

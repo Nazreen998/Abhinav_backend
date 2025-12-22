@@ -1,8 +1,5 @@
 const VisitLog = require("../models/VisitLog");
 
-// --------------------------------------
-// SAVE VISIT ✅ FINAL & SAFE
-// --------------------------------------
 exports.saveVisit = async (req, res) => {
   try {
     const {
@@ -29,12 +26,12 @@ exports.saveVisit = async (req, res) => {
 
     const visit_date = now.toLocaleDateString("en-CA", {
       timeZone: "Asia/Kolkata",
-    }); // YYYY-MM-DD
+    });
 
     const visit_time = now.toLocaleTimeString("en-GB", {
       timeZone: "Asia/Kolkata",
       hour12: false,
-    }); // HH:mm:ss
+    });
 
     const visit = await VisitLog.create({
       salesman_id,
@@ -60,28 +57,20 @@ exports.saveVisit = async (req, res) => {
   }
 };
 
-// --------------------------------------
-// GET VISITS (ROLE BASED)
-// --------------------------------------
 exports.getVisits = async (req, res) => {
   try {
     let filter = {};
-
     if (req.user.role === "salesman") {
       filter.salesman_id = req.user.user_id;
     }
 
     const visits = await VisitLog.find(filter).sort({ datetime: -1 });
-
     res.json({ success: true, visits });
   } catch (e) {
     res.status(500).json({ success: false });
   }
 };
 
-// --------------------------------------
-// STATUS FILTER
-// --------------------------------------
 exports.getVisitByStatus = async (req, res) => {
   try {
     const { status } = req.params;
