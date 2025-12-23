@@ -2,7 +2,7 @@ const Shop = require("../models/Shop");
 
 const safeString = (v) => (v === null || v === undefined ? "" : v);
 
-// ⭐ LIST SHOPS (BACKWARD COMPATIBLE FOR OLD FLUTTER APK)
+// ⭐ LIST SHOPS (FIXED & BACKWARD SAFE)
 exports.listShops = async (req, res) => {
   try {
     const shops = await Shop.find({
@@ -10,24 +10,24 @@ exports.listShops = async (req, res) => {
     }).sort({ createdAt: -1 });
 
     const safeShops = shops.map((s) => ({
-  // 🔑 DB ID
-  _id: s._id,
+      // 🔑 Mongo ID
+      _id: s._id,
 
-  // ✅ OLD FLUTTER SUPPORT
-  shop_id: s._id.toString(),
-  shop_name: safeString(s.shopName),
-  address: safeString(s.shopAddress),
+      // ✅ OLD + NEW FLUTTER SUPPORT
+      shop_id: s.shop_id || s._id.toString(),
+      shop_name: safeString(s.shop_name),
+      address: safeString(s.address),
 
-  // ✅ REQUIRED FOR MATCH / DISTANCE
-  lat: Number(s.latitude ?? 0),
-  lng: Number(s.longitude ?? 0),
+      // ✅ MATCH / MAP
+      lat: Number(s.lat ?? 0),
+      lng: Number(s.lng ?? 0),
 
-  // EXTRA
-  segment: safeString(s.segment),
+      // EXTRA
+      segment: safeString(s.segment),
 
-  // backward safety
-  shopName: safeString(s.shopName),
-}));
+      // backward compatibility
+      shopName: safeString(s.shop_name),
+    }));
 
     res.json({
       success: true,
@@ -41,29 +41,31 @@ exports.listShops = async (req, res) => {
     });
   }
 };
-// ⭐ ADD SHOP
+
+// ⭐ ADD SHOP (MATCHES SCHEMA)
 exports.addShop = async (req, res) => {
   try {
     const {
-      shopName,
-      shopAddress,
-      latitude,
-      longitude,
+      shop_name,
+      address,
+      lat,
+      lng,
       segment,
     } = req.body;
 
-    if (!shopName || !segment) {
+    if (!shop_name || !segment) {
       return res.status(400).json({
         success: false,
-        message: "shopName & segment required",
+        message: "shop_name & segment required",
       });
     }
 
     const shop = await Shop.create({
-      shopName,
-      shopAddress: shopAddress || "",
-      latitude: Number(latitude) || 0,
-      longitude: Number(longitude) || 0,
+      shop_id: new Date().getTime().toString(),
+      shop_name,
+      address: address || "",
+      lat: Number(lat) || 0,
+      lng: Number(lng) || 0,
       segment,
       isDeleted: false,
     });
@@ -74,14 +76,15 @@ exports.addShop = async (req, res) => {
     res.status(500).json({ success: false });
   }
 };
+
 // ⭐ UPDATE SHOP
 exports.updateShop = async (req, res) => {
   try {
     const id = req.params.id;
 
     const update = {
-      shopName: req.body.shopName,
-      shopAddress: req.body.shopAddress,
+      shop_name: req.body.shop_name,
+      address: req.body.address,
       segment: req.body.segment,
     };
 
@@ -91,9 +94,10 @@ exports.updateShop = async (req, res) => {
         : await Shop.findOneAndUpdate({ shop_id: id }, update, { new: true });
 
     if (!shop) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Shop not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Shop not found",
+      });
     }
 
     res.json({ success: true, shop });
@@ -102,7 +106,7 @@ exports.updateShop = async (req, res) => {
   }
 };
 
-// ⭐ SOFT DELETE SHOP
+// ⭐ SOFT DELETE
 exports.softDeleteShop = async (req, res) => {
   try {
     const id = req.params.id;
@@ -117,16 +121,14 @@ exports.softDeleteShop = async (req, res) => {
           );
 
     if (!shop) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Shop not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Shop not found",
+      });
     }
 
-    res.json({
-      success: true,
-      message: "Shop deleted (soft delete)",
-    });
+    res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
+    res.status(500).json({ success: false });
   }
 };
