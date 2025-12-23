@@ -45,42 +45,34 @@ exports.addShop = async (req, res) => {
   try {
     const {
       shopName,
-      area,
       shopAddress,
-      ownerName,
-      contactNumber,
       latitude,
       longitude,
       segment,
     } = req.body;
 
-    if (!shopName || !area || !segment) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Required fields missing" });
+    if (!shopName || !segment) {
+      return res.status(400).json({
+        success: false,
+        message: "shopName & segment required",
+      });
     }
-
-    const shopImage = req.file ? req.file.path : null;
 
     const shop = await Shop.create({
       shopName,
-      area,
-      shopAddress,
-      ownerName,
-      contactNumber,
-      latitude,
-      longitude,
+      shopAddress: shopAddress || "",
+      latitude: Number(latitude) || 0,
+      longitude: Number(longitude) || 0,
       segment,
-      shopImage,
       isDeleted: false,
     });
 
     res.json({ success: true, shop });
   } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
+    console.error("ADD SHOP ERROR:", e);
+    res.status(500).json({ success: false });
   }
 };
-
 // ⭐ UPDATE SHOP
 exports.updateShop = async (req, res) => {
   try {
