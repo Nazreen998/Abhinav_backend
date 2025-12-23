@@ -9,27 +9,23 @@ exports.listShops = async (req, res) => {
       $or: [{ isDeleted: false }, { isDeleted: { $exists: false } }],
     }).sort({ createdAt: -1 });
 
-    console.log("SHOP COUNT =", shops.length);
-
-    // 🔥 IMPORTANT: SAFE + COMPATIBLE RESPONSE
     const safeShops = shops.map((s) => ({
-      // ORIGINAL FIELDS (KEEP)
       _id: s._id,
-      shopName: safeString(s.shopName),
-      area: safeString(s.area),
-      segment: safeString(s.segment),
 
-      // 🔥 REQUIRED BY OLD FLUTTER
-      shopId: s._id,
-      shop_name: safeString(s.shopName),
-      shopNameDisplay: safeString(s.shopName),
+      // 🔥 FORCE CORRECT VALUES
+      shop_id: s._id.toString(),
+      shop_name: s.shopName || s.shopNameDisplay || "Unnamed Shop",
 
-      // 🔥 MAIN CRASH FIX (address must be STRING)
-      address: safeString(s.shopAddress),
+      address:
+        s.shopAddress ||
+        s.area ||
+        "Address not available",
 
-      // OPTIONAL (safe)
-      ownerName: safeString(s.ownerName),
-      contactNumber: safeString(s.contactNumber),
+      segment: s.segment || "",
+
+      // OPTIONAL (used elsewhere)
+      lat: s.latitude || 0,
+      lng: s.longitude || 0,
     }));
 
     res.json({
@@ -44,7 +40,6 @@ exports.listShops = async (req, res) => {
     });
   }
 };
-
 // ⭐ ADD SHOP
 exports.addShop = async (req, res) => {
   try {
