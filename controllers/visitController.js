@@ -2,18 +2,9 @@ const VisitLog = require("../models/VisitLog");
 
 exports.saveVisit = async (req, res) => {
   try {
-    const {
-      shop_id,
-      shop_name,
-      photo_url,
-      distance,
-      result,
-      segment,
-      lat,
-      lng,
-    } = req.body;
+    const { shop_id, shop_name, result } = req.body;
 
-    // ✅ salesman comes from token
+    // 🔥 FROM JWT TOKEN
     const salesman_id = req.user.user_id;
     const salesman_name = req.user.name;
 
@@ -40,12 +31,7 @@ exports.saveVisit = async (req, res) => {
       salesman_name,
       shop_id,
       shop_name,
-      photo_url,
-      distance,
       result,
-      segment,
-      lat,
-      lng,
       visit_date,
       visit_time,
       datetime: now,
@@ -55,36 +41,16 @@ exports.saveVisit = async (req, res) => {
     res.json({ success: true, visit });
   } catch (e) {
     console.error("SAVE VISIT ERROR:", e);
-    res.status(500).json({ success: false, error: e.message });
+    res.status(500).json({ success: false });
   }
 };
 
 exports.getVisits = async (req, res) => {
-  try {
-    let filter = {};
-    if (req.user.role === "salesman") {
-      filter.salesman_id = req.user.user_id;
-    }
+  const filter =
+    req.user.role === "salesman"
+      ? { salesman_id: req.user.user_id }
+      : {};
 
-    const visits = await VisitLog.find(filter).sort({ datetime: -1 });
-    res.json({ success: true, visits });
-  } catch (e) {
-    res.status(500).json({ success: false });
-  }
-};
-
-exports.getVisitByStatus = async (req, res) => {
-  try {
-    const { status } = req.params;
-    let filter = { status };
-
-    if (req.user.role === "salesman") {
-      filter.salesman_id = req.user.user_id;
-    }
-
-    const visits = await VisitLog.find(filter).sort({ datetime: -1 });
-    res.json({ success: true, visits });
-  } catch (e) {
-    res.status(500).json({ success: false });
-  }
+  const visits = await VisitLog.find(filter).sort({ datetime: -1 });
+  res.json({ success: true, visits });
 };
