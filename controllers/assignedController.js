@@ -74,7 +74,7 @@ exports.assignShop = async (req, res) => {
 
     await AssignedShop.create({
       shop_id: shop._id,
-      shop_name: shop.shop_name,
+      shop_name: shop.shopName,
 
       salesman_id: salesman._id,
       salesman_name: salesman.name,
@@ -127,7 +127,7 @@ exports.getAssignedShops = async (req, res) => {
       status: safeString(a.status),
       createdAt: a.createdAt,
 
-      shopId: a._id,
+      shopId: a.shop_id,
       shopName: safeString(a.shop_name),
     }));
 
@@ -206,14 +206,14 @@ exports.getSalesmanTodayStatus = async (req, res) => {
       arr.map((a) => ({
         _id: a._id,
         shop_name: safeString(a.shop_name),
-        shopId: a._id,
+        shopId: a.shop_id,
         shopName: safeString(a.shop_name),
         salesman_name: safeString(a.salesman_name),
         segment: safeString(a.segment),
         sequence: a.sequence ?? 0,
+        lat: a.shop_id?.latitude ?? 0,
+        lng: a.shop_id?.longitude ?? 0,
 
-        lat: a.shop_id?.lat ?? 0,
-        lng: a.shop_id?.lng ?? 0,
       }));
 
     res.json({
@@ -232,7 +232,7 @@ exports.getSalesmanTodayStatus = async (req, res) => {
 // =================================================
 exports.getNextShops = async (req, res) => {
   try {
-    const { id } = req.params; // salesman user_id
+    const { id } = req.params;
 
     const salesman = await User.findOne({ user_id: id });
     if (!salesman) {
@@ -246,22 +246,19 @@ exports.getNextShops = async (req, res) => {
       .populate("shop_id")
       .sort({ sequence: 1 });
 
-    const mapSafe = (arr) =>
-  arr.map((a) => ({
-    _id: a._id,
+    const shops = assigned.map((a) => ({
+      _id: a._id,
 
-    shop_id: a.shop_id?.shop_id ?? "",
-    shop_name: a.shop_id?.shop_name ?? a.shop_name,
-    address: a.shop_id?.address ?? "",
+      shop_id: a.shop_id?._id ?? "",
+      shop_name: a.shop_id?.shopName ?? a.shop_name,
+      address: a.shop_id?.shopAddress ?? "",
 
-    salesman_name: safeString(a.salesman_name),
-    segment: safeString(a.segment),
-    sequence: a.sequence ?? 0,
+      segment: a.segment,
+      sequence: a.sequence ?? 0,
 
-    lat: a.shop_id?.lat ?? 0,
-    lng: a.shop_id?.lng ?? 0,
-  }));
-
+      lat: a.shop_id?.latitude ?? 0,
+      lng: a.shop_id?.longitude ?? 0,
+    }));
 
     res.json({
       success: true,
@@ -272,6 +269,7 @@ exports.getNextShops = async (req, res) => {
     res.status(500).json({ success: false });
   }
 };
+
 // =================================================
 // REORDER ASSIGNED SHOPS (DRAG & DROP)
 // =================================================
