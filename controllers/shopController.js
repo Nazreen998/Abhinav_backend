@@ -10,23 +10,24 @@ exports.listShops = async (req, res) => {
     }).sort({ createdAt: -1 });
 
     const safeShops = shops.map((s) => ({
-      _id: s._id,
+  // 🔑 DB ID
+  _id: s._id,
 
-      // 🔥 FORCE CORRECT VALUES
-      shop_id: s._id.toString(),
-      shop_name: s.shopName || s.shopNameDisplay || "Unnamed Shop",
+  // ✅ OLD FLUTTER SUPPORT
+  shop_id: s._id.toString(),
+  shop_name: safeString(s.shopName),
+  address: safeString(s.shopAddress),
 
-      address:
-        s.shopAddress ||
-        s.area ||
-        "Address not available",
+  // ✅ REQUIRED FOR MATCH / DISTANCE
+  lat: Number(s.latitude ?? 0),
+  lng: Number(s.longitude ?? 0),
 
-      segment: s.segment || "",
+  // EXTRA
+  segment: safeString(s.segment),
 
-      // OPTIONAL (used elsewhere)
-      lat: s.latitude || 0,
-      lng: s.longitude || 0,
-    }));
+  // backward safety
+  shopName: safeString(s.shopName),
+}));
 
     res.json({
       success: true,
