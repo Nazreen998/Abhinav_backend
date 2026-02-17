@@ -19,7 +19,7 @@ exports.assignShop = async (req, res) => {
       });
     }
 
-    const shop = await Shop.findOne({ _id: shop_id,        // 🔥 USE ID
+    const shop = await Shop.findOne({ shop_name: shop_name,
   isDeleted: false, });
     if (!shop) return res.status(404).json({ success: false });
 
@@ -65,6 +65,78 @@ exports.assignShop = async (req, res) => {
     res.json({ success: true });
   } catch (e) {
     console.error("ASSIGN ERROR:", e);
+    res.status(500).json({ success: false });
+  }
+};
+// EDIT ASSIGNED SHOP 
+// ===============================
+// EDIT ASSIGNED SHOP (CHANGE SALESMAN)
+// ===============================
+exports.editAssignedShop = async (req, res) => {
+  try {
+    const { assign_id, new_salesman_name } = req.body;
+
+    if (!assign_id || !new_salesman_name) {
+      return res.status(400).json({ success: false });
+    }
+
+    const assignment = await AssignedShop.findById(assign_id);
+    if (!assignment) {
+      return res.status(404).json({ success: false });
+    }
+
+    const newSalesman = await User.findOne({
+      name: new_salesman_name,
+      role: "salesman",
+    });
+
+    if (!newSalesman) {
+      return res.status(404).json({ success: false });
+    }
+
+    assignment.salesman_id = newSalesman._id;
+    assignment.salesman_name = newSalesman.name;
+
+    await assignment.save();
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("EDIT ASSIGN ERROR:", err);
+    res.status(500).json({ success: false });
+  }
+};
+exports.getSalesmanTodayStatus = async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const logs = await VisitLog.find({
+      salesman_id: req.user._id,
+      createdAt: { $gte: today },
+    });
+
+    res.json({
+      success: true,
+      visitedCount: logs.length,
+    });
+  } catch (err) {
+    console.error("TODAY STATUS ERROR:", err);
+    res.status(500).json({ success: false });
+  }
+};
+exports.reassignRemovedShop = async (req, res) => {
+  try {
+    const { assign_id } = req.body;
+
+    const doc = await AssignedShop.findById(assign_id);
+    if (!doc) return res.status(404).json({ success: false });
+
+    doc.status = "active";
+    await doc.save();
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("REASSIGN ERROR:", err);
     res.status(500).json({ success: false });
   }
 };
