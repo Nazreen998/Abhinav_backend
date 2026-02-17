@@ -1,5 +1,3 @@
-.env
-
 node_modules
-
+.env
 abhinav_backend_accessKeys.csv
