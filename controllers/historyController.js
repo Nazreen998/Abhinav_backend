@@ -1,4 +1,3 @@
-const History = require("../models/History");
 
 exports.getHistory = async (req, res) => {
   try {

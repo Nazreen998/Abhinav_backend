@@ -1,5 +1,4 @@
-const PendingShop = require("../models/PendingShop_temp");
-const Shop = require("../models/Shop");
+
 const generateShopId = require("../helpers/shopIdGenerator");
 
 // ======================

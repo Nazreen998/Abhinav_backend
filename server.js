@@ -5,12 +5,12 @@ const path = require("path");
 
 // ROUTES
 const userRoutes = require("./routes/userRoutes");
-const shopRoutes = require("./routes/shopRoutes");
-const assignedRoutes = require("./routes/assignedRoutes");
-const nextShopRoutes = require("./routes/nextShopRoutes");
-const historyRoutes = require("./routes/historyRoutes");
-const visitRoutes = require("./routes/visitRoutes");
-const pendingRoutes = require("./routes/pendingRoutes");
+// const shopRoutes = require("./routes/shopRoutes");
+// const assignedRoutes = require("./routes/assignedRoutes");
+// const nextShopRoutes = require("./routes/nextShopRoutes");
+// const historyRoutes = require("./routes/historyRoutes");
+// const visitRoutes = require("./routes/visitRoutes");
+// const pendingRoutes = require("./routes/pendingRoutes");
 
 const app = express();
 
@@ -30,12 +30,12 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 // ROUTES (⚠️ ALL BEFORE listen)
 // =======================
 app.use("/api/users", userRoutes);
-app.use("/api/shops", shopRoutes);
-app.use("/api/assigned", assignedRoutes);
-app.use("/api/nextshop", nextShopRoutes);     // ✅ ONLY HERE
-app.use("/api/history", historyRoutes);
-app.use("/api/pending", pendingRoutes);
-app.use("/api/visit", visitRoutes);
+// app.use("/api/shops", shopRoutes);
+// app.use("/api/assigned", assignedRoutes);
+// app.use("/api/nextshop", nextShopRoutes);     // ✅ ONLY HERE
+// app.use("/api/history", historyRoutes);
+// app.use("/api/pending", pendingRoutes);
+// app.use("/api/visit", visitRoutes);
 
 // ❌ DO NOT mount nextShopRoutes again
 // app.use("/api/assign", nextShopRoutes);   ❌ REMOVED (THIS WAS THE BUG)

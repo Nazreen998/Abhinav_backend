@@ -1,4 +1,3 @@
-const VisitLog = require("../models/VisitLog");
 
 exports.saveVisit = async (req, res) => {
   try {

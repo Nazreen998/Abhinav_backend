@@ -1,4 +1,3 @@
-const Shop = require("../models/Shop");
 
 const safeString = (v) => (v === null || v === undefined ? "" : v);
 

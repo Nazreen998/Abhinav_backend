@@ -1,4 +1,3 @@
-const Counter = require("../models/Counter_temp");
 
 module.exports = async function generateShopId() {
   const counter = await Counter.findOneAndUpdate(
