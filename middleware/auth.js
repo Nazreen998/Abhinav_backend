@@ -1,18 +1,30 @@
 const jwt = require("jsonwebtoken");
-const User = require("../models/User");
+const ddb = require("../config/dynamo");
+const { GetCommand } = require("@aws-sdk/lib-dynamodb");
 
 module.exports = (allowedRoles = []) => {
   return async (req, res, next) => {
     try {
-      const token = req.headers.authorization?.split(" ")[1];
+      const authHeader = req.headers.authorization || "";
+      const token = authHeader.startsWith("Bearer ")
+        ? authHeader.split(" ")[1]
+        : null;
+
       if (!token) {
         return res.status(401).json({ message: "No token provided" });
       }
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // 🔥 FETCH FULL USER
-      const user = await User.findById(decoded.id);
+      // decoded.id is user_id (string) in DynamoDB version
+      const result = await ddb.send(
+        new GetCommand({
+          TableName: "abhinav_users",
+          Key: { user_id: decoded.id },
+        })
+      );
+
+      const user = result.Item;
       if (!user) {
         return res.status(401).json({ message: "User not found" });
       }
@@ -23,12 +35,12 @@ module.exports = (allowedRoles = []) => {
           .json({ message: "Forbidden: Insufficient permissions" });
       }
 
-      // 🔥 THIS IS THE KEY
       req.user = {
-        id: user._id,
+        id: user.user_id,
         name: user.name,
         role: user.role,
-        segment: user.segment,
+        segment: user.segment || "",
+        mobile: user.mobile || "",
       };
 
       next();

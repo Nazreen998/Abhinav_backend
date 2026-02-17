@@ -1,6 +1,5 @@
 require("dotenv").config();
 const express = require("express");
-const mongoose = require("mongoose");
 const cors = require("cors");
 const path = require("path");
 
@@ -54,18 +53,6 @@ app.get("/", (req, res) => {
 app.get("/api/assign/test", (req, res) => {
   res.json({ success: true, message: "ASSIGN ROUTE WORKING" });
 });
-
-// =======================
-// DB CONNECT
-// =======================
-mongoose
-  .connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(() => console.log("MongoDB Connected Successfully"))
-  .catch((err) => console.log("MongoDB Connection Error:", err));
-
 // =======================
 // SERVER START (🔥 MUST BE LAST)
 // =======================

@@ -1,37 +1,134 @@
-const User = require("../models/User");
+const ddb = require("../config/dynamo");
+const { GetCommand, ScanCommand, PutCommand, UpdateCommand } = require("@aws-sdk/lib-dynamodb");
 const jwt = require("jsonwebtoken");
+const { v4: uuidv4 } = require("uuid");
 
+// ==============================
 // LOGIN USER
+// ==============================
 exports.login = async (req, res) => {
-    try {
-        const { phone, password } = req.body;
+  try {
+    const { phone, password } = req.body;
 
-        // ✔ Your DB uses "mobile", so change phone → mobile
-        const user = await User.findOne({ mobile: phone });
+    // Scan because mobile is not primary key
+    const result = await ddb.send(
+      new ScanCommand({
+        TableName: "abhinav_users",
+        FilterExpression: "mobile = :m",
+        ExpressionAttributeValues: {
+          ":m": phone,
+        },
+      })
+    );
 
-        if (!user)
-            return res.status(404).json({ success: false, message: "User not found" });
+    const user = result.Items[0];
 
-        // ✔ DB stores plain text password
-        if (user.password !== password)
-            return res.status(400).json({ success: false, message: "Wrong password" });
+    if (!user)
+      return res.status(404).json({ success: false, message: "User not found" });
 
-        const token = jwt.sign(
-            {
-                id: user._id,
-                user_id: user.user_id,
-                name: user.name,
-                role: user.role,
-                segment: user.segment,
-                phone: user.mobile
-            },
-            process.env.JWT_SECRET,
-            { expiresIn: "7d" }
-        );
+    if (user.password !== password)
+      return res.status(400).json({ success: false, message: "Wrong password" });
 
-        return res.json({ success: true, token, user });
+    const token = jwt.sign(
+      {
+        id: user.user_id,
+        name: user.name,
+        role: user.role,
+        segment: user.segment,
+        phone: user.mobile,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
 
-    } catch (e) {
-        return res.status(500).json({ success: false, error: e.message });
-    }
+    res.json({ success: true, token, user });
+
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+};
+
+// ==============================
+// ADD USER
+// ==============================
+exports.addUser = async (req, res) => {
+  try {
+    const { name, mobile, role, segment, password } = req.body;
+
+    const newUser = {
+      user_id: uuidv4(),
+      name,
+      mobile,
+      role,
+      segment: segment || "",
+      password,
+      createdAt: new Date().toISOString(),
+    };
+
+    await ddb.send(
+      new PutCommand({
+        TableName: "abhinav_users",
+        Item: newUser,
+      })
+    );
+
+    res.json({ success: true, user: newUser });
+
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+};
+
+// ==============================
+// GET ALL USERS
+// ==============================
+exports.getAllUsers = async (req, res) => {
+  try {
+    const result = await ddb.send(
+      new ScanCommand({
+        TableName: "abhinav_users",
+      })
+    );
+
+    res.json({ success: true, users: result.Items });
+
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+};
+
+// ==============================
+// UPDATE USER
+// ==============================
+exports.updateUser = async (req, res) => {
+  try {
+    const { name, mobile, role, segment, password } = req.body;
+
+    await ddb.send(
+      new UpdateCommand({
+        TableName: "abhinav_users",
+        Key: {
+          user_id: req.params.id,
+        },
+        UpdateExpression:
+          "SET #n = :name, mobile = :mobile, #r = :role, segment = :segment, password = :password",
+        ExpressionAttributeNames: {
+          "#n": "name",
+          "#r": "role",
+        },
+        ExpressionAttributeValues: {
+          ":name": name,
+          ":mobile": mobile,
+          ":role": role,
+          ":segment": segment,
+          ":password": password,
+        },
+      })
+    );
+
+    res.json({ success: true });
+
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
 };
