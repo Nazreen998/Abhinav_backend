@@ -19,7 +19,8 @@ exports.assignShop = async (req, res) => {
       });
     }
 
-    const shop = await Shop.findOne({ shop_name, isDeleted: false });
+    const shop = await Shop.findOne({ _id: shop_id,        // 🔥 USE ID
+  isDeleted: false, });
     if (!shop) return res.status(404).json({ success: false });
 
     const salesman = await User.findOne({
