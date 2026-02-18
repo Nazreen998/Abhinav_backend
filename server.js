@@ -5,7 +5,7 @@ const path = require("path");
 
 // ROUTES
 const userRoutes = require("./routes/userRoutes");
-// const shopRoutes = require("./routes/shopRoutes");
+const shopRoutes = require("./routes/shopRoutes");
 // const assignedRoutes = require("./routes/assignedRoutes");
 // const nextShopRoutes = require("./routes/nextShopRoutes");
 // const historyRoutes = require("./routes/historyRoutes");
@@ -30,7 +30,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 // ROUTES (⚠️ ALL BEFORE listen)
 // =======================
 app.use("/api/users", userRoutes);
-// app.use("/api/shops", shopRoutes);
+app.use("/api/shops", shopRoutes);
 // app.use("/api/assigned", assignedRoutes);
 // app.use("/api/nextshop", nextShopRoutes);     // ✅ ONLY HERE
 // app.use("/api/history", historyRoutes);
