@@ -209,23 +209,26 @@ exports.updateShop = async (req, res) => {
     }
 
     await ddb.send(
-      new UpdateCommand({
-        TableName: TABLE_NAME,
-        Key: {
-          pk: `SHOP#${shopId}`,
-          sk: "PROFILE",
-        },
-        UpdateExpression:
-          "SET shop_name = :shop_name, address = :address, segment = :segment, lat = :lat, lng = :lng",
-        ExpressionAttributeValues: {
-          ":shop_name": shop_name ?? existing.Item.shop_name,
-          ":address": address ?? existing.Item.address,
-          ":segment": segment ?? existing.Item.segment,
-          ":lat": Number(lat ?? existing.Item.lat ?? 0),
-          ":lng": Number(lng ?? existing.Item.lng ?? 0),
-        },
-      })
-    );
+  new UpdateCommand({
+    TableName: TABLE_NAME,
+    Key: {
+      pk: `SHOP#${shopId}`,
+      sk: "PROFILE",
+    },
+    UpdateExpression:
+      "SET shop_name = :shop_name, address = :address, #seg = :segment, lat = :lat, lng = :lng",
+    ExpressionAttributeNames: {
+      "#seg": "segment",
+    },
+    ExpressionAttributeValues: {
+      ":shop_name": shop_name ?? existing.Item.shop_name,
+      ":address": address ?? existing.Item.address,
+      ":segment": segment ?? existing.Item.segment,
+      ":lat": Number(lat ?? existing.Item.lat ?? 0),
+      ":lng": Number(lng ?? existing.Item.lng ?? 0),
+    },
+  })
+);
 
     res.json({ success: true, message: "Shop updated successfully" });
   } catch (e) {
