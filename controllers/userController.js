@@ -1,5 +1,11 @@
 const ddb = require("../config/dynamo");
-const { GetCommand, ScanCommand, PutCommand, UpdateCommand,DeleteCommand } = require("@aws-sdk/lib-dynamodb");
+const {
+  ScanCommand,
+  PutCommand,
+  UpdateCommand,
+  DeleteCommand,
+} = require("@aws-sdk/lib-dynamodb");
+
 const jwt = require("jsonwebtoken");
 const { v4: uuidv4 } = require("uuid");
 
@@ -10,7 +16,6 @@ exports.login = async (req, res) => {
   try {
     const { phone, password } = req.body;
 
-    // Scan because mobile is not primary key
     const result = await ddb.send(
       new ScanCommand({
         TableName: "abhinav_users",
@@ -21,7 +26,7 @@ exports.login = async (req, res) => {
       })
     );
 
-    const user = result.Items[0];
+    const user = result.Items?.[0];
 
     if (!user)
       return res.status(404).json({ success: false, message: "User not found" });
@@ -42,7 +47,6 @@ exports.login = async (req, res) => {
     );
 
     res.json({ success: true, token, user });
-
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
@@ -58,8 +62,8 @@ exports.addUser = async (req, res) => {
     const userId = uuidv4();
 
     const newUser = {
-      pk: `USER#${userId}`,   // ✅ REQUIRED
-      sk: "PROFILE",          // ✅ REQUIRED
+      pk: `USER#${userId}`,
+      sk: "PROFILE",
 
       user_id: userId,
       name,
@@ -78,11 +82,11 @@ exports.addUser = async (req, res) => {
     );
 
     res.json({ success: true, user: newUser });
-
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
 };
+
 // ==============================
 // GET ALL USERS
 // ==============================
@@ -94,8 +98,7 @@ exports.getAllUsers = async (req, res) => {
       })
     );
 
-    res.json({ success: true, users: result.Items });
-
+    res.json({ success: true, users: result.Items || [] });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
@@ -109,33 +112,34 @@ exports.updateUser = async (req, res) => {
     const { name, mobile, role, segment, password } = req.body;
 
     await ddb.send(
-  new UpdateCommand({
-    TableName: "abhinav_users",
-    Key: {
-      pk: `USER#${req.params.id}`,
-      sk: "PROFILE",
-    },
-    UpdateExpression:
-      "SET #n = :name, mobile = :mobile, #r = :role, #s = :segment, password = :password",
-    ExpressionAttributeNames: {
-      "#n": "name",
-      "#r": "role",
-      "#s": "segment",   // ✅ FIX HERE
-    },
-    ExpressionAttributeValues: {
-      ":name": name,
-      ":mobile": mobile,
-      ":role": role,
-      ":segment": segment,
-      ":password": password,
-    },
-  })
-);
-    res.json({ success: true });
+      new UpdateCommand({
+        TableName: "abhinav_users",
+        Key: {
+          pk: `USER#${req.params.id}`,
+          sk: "PROFILE",
+        },
+        UpdateExpression:
+          "SET #n = :name, mobile = :mobile, #r = :role, #s = :segment, password = :password",
+        ExpressionAttributeNames: {
+          "#n": "name",
+          "#r": "role",
+          "#s": "segment",
+        },
+        ExpressionAttributeValues: {
+          ":name": name,
+          ":mobile": mobile,
+          ":role": role,
+          ":segment": segment,
+          ":password": password,
+        },
+      })
+    );
 
+    res.json({ success: true, message: "User updated successfully" });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
+};
 
 // ==============================
 // DELETE USER
@@ -154,10 +158,8 @@ exports.deleteUser = async (req, res) => {
       })
     );
 
-    res.json({ success: true, deleted: userId });
+    res.json({ success: true, message: "User deleted", deleted: userId });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
-};
-
 };

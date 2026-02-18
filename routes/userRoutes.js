@@ -1,6 +1,5 @@
 const router = require("express").Router();
 const userController = require("../controllers/userController");
-const { verifyMaster } = require("../middleware/authMiddleware");
 
 // LOGIN
 router.post("/login", userController.login);
@@ -11,10 +10,10 @@ router.post("/add", userController.addUser);
 // GET ALL USERS
 router.get("/", userController.getAllUsers);
 
-// ✅ UPDATE USER
+// UPDATE USER
 router.put("/:id", userController.updateUser);
 
-// DELEET USER
+// DELETE USER
 router.delete("/:id", userController.deleteUser);
 
 module.exports = router;
