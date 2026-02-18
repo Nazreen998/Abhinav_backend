@@ -41,7 +41,7 @@ exports.listPending = async (req, res) => {
 
     const data = await PendingShop.find(filter).sort({ createdAt: -1 });
 
-    res.json({ success: true, data });
+    res.json({ success: true, data, shops: data });
   } catch (err) {
     console.error("LIST PENDING ERROR:", err);
     res.status(500).json({ success: false });

@@ -61,6 +61,8 @@ exports.listShops = async (req, res) => {
       shop_id: s.shop_id,
       shop_name: safeString(s.shop_name),
       address: safeString(s.address),
+      shopImage: safeString(s.shopImage),
+
 
       lat: Number(s.lat ?? 0),
       lng: Number(s.lng ?? 0),
