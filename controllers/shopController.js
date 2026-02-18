@@ -13,19 +13,38 @@ const TABLE_NAME = "abhinav_shops";
 const safeString = (v) => (v === null || v === undefined ? "" : v);
 
 // ==============================
-// LIST SHOPS (master/manager/salesman)
+// LIST SHOPS (master/manager/salesman) - SEGMENT WISE
 // ==============================
 exports.listShops = async (req, res) => {
   try {
+    // base filter
+    let filterExpression =
+      "sk = :profile AND (attribute_not_exists(isDeleted) OR isDeleted = :false)";
+
+    let expressionValues = {
+      ":profile": "PROFILE",
+      ":false": false,
+    };
+
+    let expressionNames = {};
+
+    // ✅ If not master, show only their segment
+    if (req.user.role !== "master") {
+      filterExpression += " AND #seg = :segment";
+      expressionValues[":segment"] = req.user.segment;
+      expressionNames["#seg"] = "segment";
+    }
+
     const result = await ddb.send(
       new ScanCommand({
         TableName: TABLE_NAME,
-        FilterExpression:
-          "sk = :profile AND (attribute_not_exists(isDeleted) OR isDeleted = :false)",
-        ExpressionAttributeValues: {
-          ":profile": "PROFILE",
-          ":false": false,
-        },
+        FilterExpression: filterExpression,
+        ExpressionAttributeValues: expressionValues,
+
+        // only add if needed
+        ...(Object.keys(expressionNames).length > 0 && {
+          ExpressionAttributeNames: expressionNames,
+        }),
       })
     );
 
@@ -72,7 +91,6 @@ exports.listShops = async (req, res) => {
     });
   }
 };
-
 // ==============================
 // ADD SHOP (salesman/manager)
 // ==============================
