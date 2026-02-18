@@ -6,6 +6,7 @@ module.exports = (allowedRoles = []) => {
   return async (req, res, next) => {
     try {
       const authHeader = req.headers.authorization || "";
+
       const token = authHeader.startsWith("Bearer ")
         ? authHeader.split(" ")[1]
         : null;
@@ -16,15 +17,19 @@ module.exports = (allowedRoles = []) => {
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // decoded.id is user_id (string) in DynamoDB version
+      // ✅ CORRECT DYNAMODB KEY STRUCTURE
       const result = await ddb.send(
         new GetCommand({
           TableName: "abhinav_users",
-          Key: { user_id: decoded.id },
+          Key: {
+            pk: `USER#${decoded.id}`,
+            sk: "PROFILE",
+          },
         })
       );
 
       const user = result.Item;
+
       if (!user) {
         return res.status(401).json({ message: "User not found" });
       }
@@ -45,6 +50,7 @@ module.exports = (allowedRoles = []) => {
 
       next();
     } catch (error) {
+      console.error("AUTH ERROR:", error);
       return res
         .status(401)
         .json({ message: "Invalid token", error: error.message });
