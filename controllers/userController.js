@@ -109,27 +109,28 @@ exports.updateUser = async (req, res) => {
     const { name, mobile, role, segment, password } = req.body;
 
     await ddb.send(
-      new UpdateCommand({
-        TableName: "abhinav_users",
-        Key: {
-          user_id: req.params.id,
-        },
-        UpdateExpression:
-          "SET #n = :name, mobile = :mobile, #r = :role, segment = :segment, password = :password",
-        ExpressionAttributeNames: {
-          "#n": "name",
-          "#r": "role",
-        },
-        ExpressionAttributeValues: {
-          ":name": name,
-          ":mobile": mobile,
-          ":role": role,
-          ":segment": segment,
-          ":password": password,
-        },
-      })
-    );
-
+  new UpdateCommand({
+    TableName: "abhinav_users",
+    Key: {
+      pk: `USER#${req.params.id}`,
+      sk: "PROFILE",
+    },
+    UpdateExpression:
+      "SET #n = :name, mobile = :mobile, #r = :role, #s = :segment, password = :password",
+    ExpressionAttributeNames: {
+      "#n": "name",
+      "#r": "role",
+      "#s": "segment",   // ✅ FIX HERE
+    },
+    ExpressionAttributeValues: {
+      ":name": name,
+      ":mobile": mobile,
+      ":role": role,
+      ":segment": segment,
+      ":password": password,
+    },
+  })
+);
     res.json({ success: true });
 
   } catch (e) {
