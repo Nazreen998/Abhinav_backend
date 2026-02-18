@@ -1,5 +1,5 @@
 const ddb = require("../config/dynamo");
-const { GetCommand, ScanCommand, PutCommand, UpdateCommand } = require("@aws-sdk/lib-dynamodb");
+const { GetCommand, ScanCommand, PutCommand, UpdateCommand,DeleteCommand } = require("@aws-sdk/lib-dynamodb");
 const jwt = require("jsonwebtoken");
 const { v4: uuidv4 } = require("uuid");
 
@@ -136,4 +136,28 @@ exports.updateUser = async (req, res) => {
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
+
+// ==============================
+// DELETE USER
+// ==============================
+exports.deleteUser = async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    await ddb.send(
+      new DeleteCommand({
+        TableName: "abhinav_users",
+        Key: {
+          pk: `USER#${userId}`,
+          sk: "PROFILE",
+        },
+      })
+    );
+
+    res.json({ success: true, deleted: userId });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+};
+
 };
