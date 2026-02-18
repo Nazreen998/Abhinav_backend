@@ -1,7 +1,4 @@
-const AssignedShop = require("../models/AssignedShop");
-const History = require("../models/History");
-const User = require("../models/User");
-const Shop = require("../models/Shop");
+
 const { calculateDistance } = require("../utils/distanceCalculator");
 
 // =================================================

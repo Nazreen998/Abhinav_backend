@@ -55,8 +55,13 @@ exports.addUser = async (req, res) => {
   try {
     const { name, mobile, role, segment, password } = req.body;
 
+    const userId = uuidv4();
+
     const newUser = {
-      user_id: uuidv4(),
+      pk: `USER#${userId}`,   // ✅ REQUIRED
+      sk: "PROFILE",          // ✅ REQUIRED
+
+      user_id: userId,
       name,
       mobile,
       role,
@@ -78,7 +83,6 @@ exports.addUser = async (req, res) => {
     res.status(500).json({ success: false, error: e.message });
   }
 };
-
 // ==============================
 // GET ALL USERS
 // ==============================

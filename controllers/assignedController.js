@@ -1,8 +1,3 @@
-const AssignedShop = require("../models/AssignedShop");
-const VisitLog = require("../models/VisitLog");
-const Shop = require("../models/Shop");
-const User = require("../models/User");
-
 const safe = (v) => (v === null || v === undefined ? "" : v);
 
 // ===============================
