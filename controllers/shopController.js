@@ -1,37 +1,69 @@
+const ddb = require("../config/dynamo");
+const {
+  ScanCommand,
+  PutCommand,
+  UpdateCommand,
+  GetCommand,
+} = require("@aws-sdk/lib-dynamodb");
+
+const { v4: uuidv4 } = require("uuid");
+
+const TABLE_NAME = "abhinav_shops";
 
 const safeString = (v) => (v === null || v === undefined ? "" : v);
 
-// ⭐ LIST SHOPS (FIXED & BACKWARD SAFE)
+// ==============================
+// LIST SHOPS (master/manager/salesman)
+// ==============================
 exports.listShops = async (req, res) => {
   try {
-    const shops = await Shop.find({
-      $or: [{ isDeleted: false }, { isDeleted: { $exists: false } }],
-    }).sort({ createdAt: -1 });
+    const result = await ddb.send(
+      new ScanCommand({
+        TableName: TABLE_NAME,
+        FilterExpression:
+          "sk = :profile AND (attribute_not_exists(isDeleted) OR isDeleted = :false)",
+        ExpressionAttributeValues: {
+          ":profile": "PROFILE",
+          ":false": false,
+        },
+      })
+    );
+
+    const shops = (result.Items || []).sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    );
 
     const safeShops = shops.map((s) => ({
-      // 🔑 Mongo ID
-      _id: s._id,
+      // Dynamo keys
+      pk: s.pk,
+      sk: s.sk,
 
-      // ✅ OLD + NEW FLUTTER SUPPORT
-      shop_id: s.shop_id || s._id.toString(),
+      // Flutter support
+      shop_id: s.shop_id,
       shop_name: safeString(s.shop_name),
       address: safeString(s.address),
 
-      // ✅ MATCH / MAP
       lat: Number(s.lat ?? 0),
       lng: Number(s.lng ?? 0),
 
-      // EXTRA
       segment: safeString(s.segment),
 
-      // backward compatibility
+      // Approval
+      isApproved: s.isApproved ?? false,
+      approvedBy: safeString(s.approvedBy),
+      approvedAt: safeString(s.approvedAt),
+
+      // Created by
+      createdByUserId: safeString(s.createdByUserId),
+      createdByUserName: safeString(s.createdByUserName),
+
+      // Backward compatibility
       shopName: safeString(s.shop_name),
+
+      createdAt: safeString(s.createdAt),
     }));
 
-    res.json({
-      success: true,
-      shops: safeShops,
-    });
+    res.json({ success: true, shops: safeShops });
   } catch (err) {
     console.error("LIST SHOP ERROR:", err);
     res.status(500).json({
@@ -41,16 +73,12 @@ exports.listShops = async (req, res) => {
   }
 };
 
-// ⭐ ADD SHOP (MATCHES SCHEMA)
+// ==============================
+// ADD SHOP (salesman/manager)
+// ==============================
 exports.addShop = async (req, res) => {
   try {
-    const {
-      shop_name,
-      address,
-      lat,
-      lng,
-      segment,
-    } = req.body;
+    const { shop_name, address, lat, lng, segment } = req.body;
 
     if (!shop_name || !segment) {
       return res.status(400).json({
@@ -59,75 +87,193 @@ exports.addShop = async (req, res) => {
       });
     }
 
-    const shop = await Shop.create({
-      shop_id: new Date().getTime().toString(),
+    const shopId = uuidv4();
+
+    // If you upload image in multer middleware
+    const shopImage =
+      req.file?.location || req.file?.path || req.body.shopImage || "";
+
+    const shop = {
+      pk: `SHOP#${shopId}`,
+      sk: "PROFILE",
+
+      shop_id: shopId,
       shop_name,
       address: address || "",
+
       lat: Number(lat) || 0,
       lng: Number(lng) || 0,
+
       segment,
+
+      // approval
+      isApproved: false,
+      approvedBy: "",
+      approvedAt: "",
+
+      // soft delete
       isDeleted: false,
-    });
+
+      // image
+      shopImage,
+
+      // created by
+      createdByUserId: req.user?.id || "",
+      createdByUserName: req.user?.name || "",
+
+      createdAt: new Date().toISOString(),
+    };
+
+    await ddb.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: shop,
+      })
+    );
 
     res.json({ success: true, shop });
   } catch (e) {
     console.error("ADD SHOP ERROR:", e);
-    res.status(500).json({ success: false });
+    res.status(500).json({ success: false, error: e.message });
   }
 };
 
-// ⭐ UPDATE SHOP
+// ==============================
+// APPROVE SHOP (manager/master)
+// ==============================
+exports.approveShop = async (req, res) => {
+  try {
+    const shopId = req.params.id;
+
+    // check exists
+    const existing = await ddb.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: { pk: `SHOP#${shopId}`, sk: "PROFILE" },
+      })
+    );
+
+    if (!existing.Item) {
+      return res.status(404).json({
+        success: false,
+        message: "Shop not found",
+      });
+    }
+
+    await ddb.send(
+      new UpdateCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          pk: `SHOP#${shopId}`,
+          sk: "PROFILE",
+        },
+        UpdateExpression:
+          "SET isApproved = :true, approvedBy = :by, approvedAt = :at",
+        ExpressionAttributeValues: {
+          ":true": true,
+          ":by": req.user?.name || "",
+          ":at": new Date().toISOString(),
+        },
+      })
+    );
+
+    res.json({ success: true, message: "Shop approved successfully" });
+  } catch (e) {
+    console.error("APPROVE SHOP ERROR:", e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+};
+
+// ==============================
+// UPDATE SHOP (manager/master)
+// ==============================
 exports.updateShop = async (req, res) => {
   try {
-    const id = req.params.id;
+    const shopId = req.params.id;
 
-    const update = {
-      shop_name: req.body.shop_name,
-      address: req.body.address,
-      segment: req.body.segment,
-    };
+    const { shop_name, address, segment, lat, lng } = req.body;
 
-    const shop =
-      id.length > 10
-        ? await Shop.findByIdAndUpdate(id, update, { new: true })
-        : await Shop.findOneAndUpdate({ shop_id: id }, update, { new: true });
+    // check exists
+    const existing = await ddb.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: { pk: `SHOP#${shopId}`, sk: "PROFILE" },
+      })
+    );
 
-    if (!shop) {
+    if (!existing.Item) {
       return res.status(404).json({
         success: false,
         message: "Shop not found",
       });
     }
 
-    res.json({ success: true, shop });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    await ddb.send(
+      new UpdateCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          pk: `SHOP#${shopId}`,
+          sk: "PROFILE",
+        },
+        UpdateExpression:
+          "SET shop_name = :shop_name, address = :address, segment = :segment, lat = :lat, lng = :lng",
+        ExpressionAttributeValues: {
+          ":shop_name": shop_name ?? existing.Item.shop_name,
+          ":address": address ?? existing.Item.address,
+          ":segment": segment ?? existing.Item.segment,
+          ":lat": Number(lat ?? existing.Item.lat ?? 0),
+          ":lng": Number(lng ?? existing.Item.lng ?? 0),
+        },
+      })
+    );
+
+    res.json({ success: true, message: "Shop updated successfully" });
+  } catch (e) {
+    console.error("UPDATE SHOP ERROR:", e);
+    res.status(500).json({ success: false, error: e.message });
   }
 };
 
-// ⭐ SOFT DELETE
+// ==============================
+// SOFT DELETE SHOP (master only)
+// ==============================
 exports.softDeleteShop = async (req, res) => {
   try {
-    const id = req.params.id;
+    const shopId = req.params.id;
 
-    const shop =
-      id.length > 10
-        ? await Shop.findByIdAndUpdate(id, { isDeleted: true }, { new: true })
-        : await Shop.findOneAndUpdate(
-            { shop_id: id },
-            { isDeleted: true },
-            { new: true }
-          );
+    // check exists
+    const existing = await ddb.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: { pk: `SHOP#${shopId}`, sk: "PROFILE" },
+      })
+    );
 
-    if (!shop) {
+    if (!existing.Item) {
       return res.status(404).json({
         success: false,
         message: "Shop not found",
       });
     }
 
-    res.json({ success: true });
+    await ddb.send(
+      new UpdateCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          pk: `SHOP#${shopId}`,
+          sk: "PROFILE",
+        },
+        UpdateExpression: "SET isDeleted = :true, deletedAt = :at",
+        ExpressionAttributeValues: {
+          ":true": true,
+          ":at": new Date().toISOString(),
+        },
+      })
+    );
+
+    res.json({ success: true, message: "Shop deleted successfully" });
   } catch (e) {
-    res.status(500).json({ success: false });
+    console.error("DELETE SHOP ERROR:", e);
+    res.status(500).json({ success: false, error: e.message });
   }
 };

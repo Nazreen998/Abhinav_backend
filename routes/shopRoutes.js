@@ -3,28 +3,39 @@ const shopController = require("../controllers/shopController");
 const auth = require("../middleware/auth");
 const uploadShopImage = require("../middleware/uploadShopImage");
 
-// ADD SHOP
+// ADD SHOP (salesman + manager)
 router.post(
   "/add",
-  auth(["master", "manager"]),
+  auth(["salesman", "manager"]),
   uploadShopImage.single("shopImage"),
   shopController.addShop
 );
 
-// GET SHOPS
+// LIST SHOPS (master + manager + salesman)
 router.get(
   "/list",
   auth(["master", "manager", "salesman"]),
   shopController.listShops
 );
 
-// UPDATE SHOP (supports both _id and shop_id)
-router.put("/update/:id", shopController.updateShop);
+// APPROVE SHOP (manager + master)
+router.put(
+  "/approve/:id",
+  auth(["master", "manager"]),
+  shopController.approveShop
+);
 
-// SOFT DELETE
+// UPDATE SHOP (manager + master)
+router.put(
+  "/update/:id",
+  auth(["master", "manager"]),
+  shopController.updateShop
+);
+
+// DELETE SHOP (master only)
 router.delete(
   "/delete/:id",
-  auth(["master", "manager"]),
+  auth(["master"]),
   shopController.softDeleteShop
 );
 
