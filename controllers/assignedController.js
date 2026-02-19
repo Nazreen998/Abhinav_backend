@@ -1,210 +1,229 @@
-const safe = (v) => (v === null || v === undefined ? "" : v);
+const ddb = require("../config/dynamo");
+const { ScanCommand, PutCommand, UpdateCommand } = require("@aws-sdk/lib-dynamodb");
+const { v4: uuidv4 } = require("uuid");
+
+const TABLE_NAME = "abhinav_assignments";
+
+const pad4 = (n) => String(n).padStart(4, "0");
+const todayYMD = () => new Date().toISOString().slice(0, 10);
 
 // ===============================
-// ASSIGN SHOP
+// MANAGER/MASTER -> RESET + ASSIGN (MANUAL)
+// Body:
+// {
+//   "salesmanId": "uuid",
+//   "salesmanName": "Kumar",
+//   "shops": [
+//      {"shop_name":"AAA", "address":"Chennai", "segment":"pipes"},
+//      {"shop_name":"BBB", "address":"Chennai", "segment":"pipes"}
+//   ]
+// }
 // ===============================
-exports.assignShop = async (req, res) => {
+exports.resetAndAssignManual = async (req, res) => {
   try {
-    const { shop_name, salesman_name } = req.body;
+    const { salesmanId, salesmanName, shops } = req.body;
 
-    if (!shop_name || !salesman_name) {
+    if (!salesmanId || !salesmanName || !Array.isArray(shops) || shops.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "shop_name & salesman_name required",
+        message: "salesmanId, salesmanName, shops[] required",
       });
     }
 
-    const shop = await Shop.findOne({ shop_name: shop_name,
-  isDeleted: false, });
-    if (!shop) return res.status(404).json({ success: false });
+    // ✅ segment safety: manager can assign only own segment
+    if (req.user.role === "manager") {
+      const invalid = shops.find((s) => (s.segment || "").toLowerCase() !== (req.user.segment || "").toLowerCase());
+      if (invalid) {
+        return res.status(403).json({
+          success: false,
+          message: "Manager can assign only own segment shops",
+        });
+      }
+    }
 
-    const salesman = await User.findOne({
-      name: salesman_name,
-      role: "salesman",
-    });
-    if (!salesman) return res.status(404).json({ success: false });
+    const pk = `SALESMAN#${salesmanId}`;
+    const day = todayYMD();
 
-    const exists = await AssignedShop.findOne({
-      shop_id: shop._id,
-      salesman_id: salesman._id,
-      status: "active",
-    });
-    if (exists) return res.json({ success: true });
+    // 1) Reset: mark previous ACTIVE for today as REMOVED
+    const prev = await ddb.send(
+      new ScanCommand({
+        TableName: TABLE_NAME,
+        FilterExpression: "pk = :pk AND begins_with(sk, :prefix) AND #st = :active",
+        ExpressionAttributeNames: { "#st": "status" },
+        ExpressionAttributeValues: {
+          ":pk": pk,
+          ":prefix": `ASSIGN#${day}#`,
+          ":active": "active",
+        },
+      })
+    );
 
-    const last = await AssignedShop.find({
-      salesman_id: salesman._id,
-      status: "active",
-    })
-      .sort({ sequence: -1 })
-      .limit(1);
+    const prevItems = prev.Items || [];
+    for (const it of prevItems) {
+      await ddb.send(
+        new UpdateCommand({
+          TableName: TABLE_NAME,
+          Key: { pk: it.pk, sk: it.sk },
+          UpdateExpression: "SET #st = :removed, removedAt = :at",
+          ExpressionAttributeNames: { "#st": "status" },
+          ExpressionAttributeValues: {
+            ":removed": "removed",
+            ":at": new Date().toISOString(),
+          },
+        })
+      );
+    }
 
-    const nextSeq = last.length ? last[0].sequence + 1 : 1;
+    // 2) Insert new assignments with sequence
+    const createdAt = new Date().toISOString();
+    for (let i = 0; i < shops.length; i++) {
+      const s = shops[i] || {};
+      if (!s.shop_name || !s.address || !s.segment) {
+        return res.status(400).json({
+          success: false,
+          message: "Each shop must have shop_name, address, segment",
+        });
+      }
 
-    await AssignedShop.create({
-      shop_id: shop._id,
-      shop_name: shop.shop_name,
+      const seq = i + 1;
 
-      salesman_id: salesman._id,
-      salesman_name: salesman.name,
+      const item = {
+        pk,
+        sk: `ASSIGN#${day}#${pad4(seq)}`,
 
-      segment: shop.segment,
-      sequence: nextSeq,
+        assignment_id: uuidv4(),
 
-      assigned_by_id: req.user._id,
-      assigned_by_name: req.user.name,
-      assigned_by_role: req.user.role,
+        salesmanId,
+        salesmanName,
 
-      status: "active",
-    });
+        shop_name: s.shop_name,
+        address: s.address,
+        segment: String(s.segment).toLowerCase(),
 
-    res.json({ success: true });
+        sequence: seq,
+        mode: "manual",
+        status: "active",
+
+        assignedById: req.user.id,
+        assignedByName: req.user.name,
+        assignedByRole: req.user.role,
+
+        createdAt,
+      };
+
+      await ddb.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
+    }
+
+    res.json({ success: true, message: "Assigned successfully", count: shops.length });
   } catch (e) {
-    console.error("ASSIGN ERROR:", e);
-    res.status(500).json({ success: false });
-  }
-};
-// EDIT ASSIGNED SHOP 
-// ===============================
-// EDIT ASSIGNED SHOP (CHANGE SALESMAN)
-// ===============================
-exports.editAssignedShop = async (req, res) => {
-  try {
-    const { assign_id, new_salesman_name } = req.body;
-
-    if (!assign_id || !new_salesman_name) {
-      return res.status(400).json({ success: false });
-    }
-
-    const assignment = await AssignedShop.findById(assign_id);
-    if (!assignment) {
-      return res.status(404).json({ success: false });
-    }
-
-    const newSalesman = await User.findOne({
-      name: new_salesman_name,
-      role: "salesman",
-    });
-
-    if (!newSalesman) {
-      return res.status(404).json({ success: false });
-    }
-
-    assignment.salesman_id = newSalesman._id;
-    assignment.salesman_name = newSalesman.name;
-
-    await assignment.save();
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error("EDIT ASSIGN ERROR:", err);
-    res.status(500).json({ success: false });
-  }
-};
-exports.getSalesmanTodayStatus = async (req, res) => {
-  try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const logs = await VisitLog.find({
-      salesman_id: req.user._id,
-      createdAt: { $gte: today },
-    });
-
-    res.json({
-      success: true,
-      visitedCount: logs.length,
-    });
-  } catch (err) {
-    console.error("TODAY STATUS ERROR:", err);
-    res.status(500).json({ success: false });
-  }
-};
-exports.reassignRemovedShop = async (req, res) => {
-  try {
-    const { assign_id } = req.body;
-
-    const doc = await AssignedShop.findById(assign_id);
-    if (!doc) return res.status(404).json({ success: false });
-
-    doc.status = "active";
-    await doc.save();
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error("REASSIGN ERROR:", err);
-    res.status(500).json({ success: false });
+    console.error("RESET+ASSIGN ERROR:", e);
+    res.status(500).json({ success: false, error: e.message });
   }
 };
 
 // ===============================
-// GET ASSIGNED SHOPS
+// LIST ASSIGNED (Master/Manager/Salesman)
+// - salesman: own active list
+// - manager: must pass salesmanId, only own segment people (we validate later)
 // ===============================
-exports.getAssignedShops = async (req, res) => {
+exports.listAssigned = async (req, res) => {
   try {
-    let filter = { status: "active" };
+    const day = todayYMD();
+
+    let salesmanId = req.query.salesmanId;
 
     if (req.user.role === "salesman") {
-      filter.salesman_id = req.user._id;
+      salesmanId = req.user.id;
+    } else {
+      if (!salesmanId) {
+        return res.status(400).json({ success: false, message: "salesmanId required" });
+      }
     }
 
-    if (req.user.role === "manager") {
-      filter.segment = req.user.segment;
-    }
+    const pk = `SALESMAN#${salesmanId}`;
 
-    const assigned = await AssignedShop.find(filter).sort({ sequence: 1 });
+    const result = await ddb.send(
+      new ScanCommand({
+        TableName: TABLE_NAME,
+        FilterExpression: "pk = :pk AND begins_with(sk, :prefix) AND #st = :active",
+        ExpressionAttributeNames: { "#st": "status" },
+        ExpressionAttributeValues: {
+          ":pk": pk,
+          ":prefix": `ASSIGN#${day}#`,
+          ":active": "active",
+        },
+      })
+    );
 
-    const mapped = assigned.map((a) => ({
-      _id: a._id,
-      shop_id: a.shop_id.toString(),
-      shop_name: safe(a.shop_name),
-
-      salesman_id: a.salesman_id.toString(),
-      salesman_name: safe(a.salesman_name),
-
-      segment: safe(a.segment),
-      sequence: a.sequence ?? 0,
-    }));
-
-    res.json({ success: true, assigned: mapped });
+    const items = (result.Items || []).sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
+    res.json({ success: true, assigned: items });
   } catch (e) {
-    res.status(500).json({ success: false });
+    console.error("LIST ASSIGNED ERROR:", e);
+    res.status(500).json({ success: false, error: e.message });
   }
 };
 
 // ===============================
-// REMOVE ASSIGNED SHOP
+// REMOVE one assignment (soft)
+// Body: { "sk": "ASSIGN#YYYY-MM-DD#0002", "salesmanId": "uuid" }
 // ===============================
 exports.removeAssigned = async (req, res) => {
   try {
-    const { assign_id } = req.body;
+    const { salesmanId, sk } = req.body;
+    if (!salesmanId || !sk) return res.status(400).json({ success: false, message: "salesmanId & sk required" });
 
-    const doc = await AssignedShop.findById(assign_id);
-    if (!doc) return res.status(404).json({ success: false });
-
-    doc.status = "removed";
-    await doc.save();
+    await ddb.send(
+      new UpdateCommand({
+        TableName: TABLE_NAME,
+        Key: { pk: `SALESMAN#${salesmanId}`, sk },
+        UpdateExpression: "SET #st = :removed, removedAt = :at",
+        ExpressionAttributeNames: { "#st": "status" },
+        ExpressionAttributeValues: { ":removed": "removed", ":at": new Date().toISOString() },
+      })
+    );
 
     res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ success: false });
+    console.error("REMOVE ASSIGNED ERROR:", e);
+    res.status(500).json({ success: false, error: e.message });
   }
 };
 
 // ===============================
-// REORDER SHOPS
+// REORDER (drag & drop)
+// Body: { "salesmanId": "uuid", "order": ["ASSIGN#...#0003","ASSIGN#...#0001", ...] }
 // ===============================
-exports.reorderAssignedShops = async (req, res) => {
+exports.reorderAssigned = async (req, res) => {
   try {
-    const { shops } = req.body;
+    const { salesmanId, order } = req.body;
 
-    for (let i = 0; i < shops.length; i++) {
-      await AssignedShop.findByIdAndUpdate(shops[i]._id, {
-        sequence: i + 1,
-      });
+    if (!salesmanId || !Array.isArray(order) || order.length === 0) {
+      return res.status(400).json({ success: false, message: "salesmanId & order[] required" });
+    }
+
+    const pk = `SALESMAN#${salesmanId}`;
+    const day = todayYMD();
+
+    // For simplicity: update sequence number only (SK stays same)
+    // (Best practice: recreate items with new SK — but that's heavier. We'll keep it simple now.)
+    for (let i = 0; i < order.length; i++) {
+      const sk = order[i];
+      await ddb.send(
+        new UpdateCommand({
+          TableName: TABLE_NAME,
+          Key: { pk, sk },
+          UpdateExpression: "SET sequence = :seq, updatedAt = :at",
+          ExpressionAttributeValues: {
+            ":seq": i + 1,
+            ":at": new Date().toISOString(),
+          },
+        })
+      );
     }
 
     res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ success: false });
+    console.error("REORDER ERROR:", e);
+    res.status(500).json({ success: false, error: e.message });
   }
 };
