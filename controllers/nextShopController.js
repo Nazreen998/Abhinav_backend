@@ -9,7 +9,24 @@ const todayYMD = () => new Date().toISOString().slice(0, 10);
 exports.getNextShop = async (req, res) => {
   try {
     const day = todayYMD();
-   const pk = `SALESMAN#USER#${req.user.id}`;
+    const pk = `SALESMAN#USER#${req.user.id}`;
+
+    // ✅ 1. FIRST get assignments
+    const result = await ddb.send(
+      new ScanCommand({
+        TableName: ASSIGN_TABLE,
+        FilterExpression:
+          "pk = :pk AND begins_with(sk, :prefix) AND #st = :active",
+        ExpressionAttributeNames: {
+          "#st": "status",
+        },
+        ExpressionAttributeValues: {
+          ":pk": pk,
+          ":prefix": `ASSIGN#${day}#`,
+          ":active": "active",
+        },
+      })
+    );
 
     const assignments = (result.Items || []).sort(
       (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)
@@ -17,13 +34,11 @@ exports.getNextShop = async (req, res) => {
 
     const finalShops = [];
 
-    // 2️⃣ Fetch lat/lng from shop table
+    // ✅ 2. Fetch shop details (lat/lng)
     for (let assign of assignments) {
-      const shopId = assign.shop_id; // 🔥 MUST exist
+      const shopId = assign.shop_id;
 
-      if (!shopId) {
-        continue;
-      }
+      if (!shopId) continue;
 
       const shopRes = await ddb.send(
         new GetCommand({
@@ -36,11 +51,12 @@ exports.getNextShop = async (req, res) => {
       );
 
       const shop = shopRes.Item;
-
       if (!shop) continue;
 
       finalShops.push({
         ...assign,
+        shop_id: shopId,
+        shop_name: shop.shop_name ?? assign.shop_name ?? "",
         address: shop.address ?? "",
         lat: Number(shop.lat ?? 0),
         lng: Number(shop.lng ?? 0),
@@ -48,13 +64,14 @@ exports.getNextShop = async (req, res) => {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       shops: finalShops,
     });
+
   } catch (e) {
     console.error("NEXT SHOP ERROR:", e);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: e.message,
     });
