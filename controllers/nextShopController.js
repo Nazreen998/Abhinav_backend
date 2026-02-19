@@ -1,7 +1,9 @@
 const ddb = require("../config/dynamo");
-const { ScanCommand } = require("@aws-sdk/lib-dynamodb");
+const { ScanCommand, GetCommand } = require("@aws-sdk/lib-dynamodb");
 
-const TABLE_NAME = "abhinav_assignments";
+const ASSIGN_TABLE = "abhinav_assignments";
+const SHOP_TABLE = "abhinav_shops";
+
 const todayYMD = () => new Date().toISOString().slice(0, 10);
 
 exports.getNextShop = async (req, res) => {
@@ -9,11 +11,15 @@ exports.getNextShop = async (req, res) => {
     const day = todayYMD();
     const pk = `SALESMAN#${req.user.id}`;
 
+    // 1️⃣ Get today's active assignments
     const result = await ddb.send(
       new ScanCommand({
-        TableName: TABLE_NAME,
-        FilterExpression: "pk = :pk AND begins_with(sk, :prefix) AND #st = :active",
-        ExpressionAttributeNames: { "#st": "status" },
+        TableName: ASSIGN_TABLE,
+        FilterExpression:
+          "pk = :pk AND begins_with(sk, :prefix) AND #st = :active",
+        ExpressionAttributeNames: {
+          "#st": "status",
+        },
         ExpressionAttributeValues: {
           ":pk": pk,
           ":prefix": `ASSIGN#${day}#`,
@@ -22,11 +28,52 @@ exports.getNextShop = async (req, res) => {
       })
     );
 
-    const shops = (result.Items || []).sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
+    const assignments = (result.Items || []).sort(
+      (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)
+    );
 
-    res.json({ success: true, shops });
+    const finalShops = [];
+
+    // 2️⃣ Fetch lat/lng from shop table
+    for (let assign of assignments) {
+      const shopId = assign.shop_id; // 🔥 MUST exist
+
+      if (!shopId) {
+        continue;
+      }
+
+      const shopRes = await ddb.send(
+        new GetCommand({
+          TableName: SHOP_TABLE,
+          Key: {
+            pk: `SHOP#${shopId}`,
+            sk: "PROFILE",
+          },
+        })
+      );
+
+      const shop = shopRes.Item;
+
+      if (!shop) continue;
+
+      finalShops.push({
+        ...assign,
+        address: shop.address ?? "",
+        lat: Number(shop.lat ?? 0),
+        lng: Number(shop.lng ?? 0),
+        segment: shop.segment ?? "",
+      });
+    }
+
+    res.json({
+      success: true,
+      shops: finalShops,
+    });
   } catch (e) {
     console.error("NEXT SHOP ERROR:", e);
-    res.status(500).json({ success: false, error: e.message });
+    res.status(500).json({
+      success: false,
+      error: e.message,
+    });
   }
 };
