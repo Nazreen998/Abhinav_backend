@@ -1,11 +1,15 @@
+const ddb = require("../config/dynamo");
+const { PutCommand, ScanCommand } = require("@aws-sdk/lib-dynamodb");
+const { v4: uuidv4 } = require("uuid");
+
+const TABLE_NAME = "abhinav_visit_history";
 
 exports.saveVisit = async (req, res) => {
   try {
     const { shop_id, shop_name, result } = req.body;
 
-    // 🔥 FROM JWT TOKEN
-    const salesman_id = req.user.user_id;
-    const salesman_name = req.user.name;
+    const salesmanId = req.user.id;
+    const salesmanName = req.user.name;
 
     if (!shop_id) {
       return res.status(400).json({
@@ -14,42 +18,62 @@ exports.saveVisit = async (req, res) => {
       });
     }
 
-    const now = new Date();
+    const now = new Date().toISOString();
 
-    const visit_date = now.toLocaleDateString("en-CA", {
-      timeZone: "Asia/Kolkata",
-    });
+    const item = {
+      pk: `VISIT#USER#${salesmanId}`,
+      sk: `SHOP#${shop_id}#${now}`,
 
-    const visit_time = now.toLocaleTimeString("en-GB", {
-      timeZone: "Asia/Kolkata",
-      hour12: false,
-    });
+      visit_id: uuidv4(),
 
-    const visit = await VisitLog.create({
-      salesman_id,
-      salesman_name,
+      salesmanId,
+      salesmanName,
+
       shop_id,
       shop_name,
-      result,
-      visit_date,
-      visit_time,
-      datetime: now,
-      status: "completed",
-    });
 
-    res.json({ success: true, visit });
+      result: result || "matched",
+
+      status: "completed",
+
+      createdAt: now,
+    };
+
+    await ddb.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: item,
+      })
+    );
+
+    res.json({ success: true });
   } catch (e) {
     console.error("SAVE VISIT ERROR:", e);
-    res.status(500).json({ success: false });
+    res.status(500).json({ success: false, error: e.message });
   }
 };
 
 exports.getVisits = async (req, res) => {
-  const filter =
-    req.user.role === "salesman"
-      ? { salesman_id: req.user.user_id }
-      : {};
+  try {
+    const salesmanId = req.user.role === "salesman"
+      ? req.user.id
+      : req.query.salesmanId;
 
-  const visits = await VisitLog.find(filter).sort({ datetime: -1 });
-  res.json({ success: true, visits });
+    const result = await ddb.send(
+      new ScanCommand({
+        TableName: TABLE_NAME,
+        FilterExpression: "begins_with(pk, :pk)",
+        ExpressionAttributeValues: {
+          ":pk": `VISIT#USER#${salesmanId}`,
+        },
+      })
+    );
+
+    const visits = result.Items || [];
+
+    res.json({ success: true, visits });
+  } catch (e) {
+    console.error("GET VISITS ERROR:", e);
+    res.status(500).json({ success: false, error: e.message });
+  }
 };
