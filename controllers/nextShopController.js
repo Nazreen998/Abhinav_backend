@@ -11,23 +11,6 @@ exports.getNextShop = async (req, res) => {
     const day = todayYMD();
     const pk = `SALESMAN#${req.user.id}`;
 
-    // 1️⃣ Get today's active assignments
-    const result = await ddb.send(
-      new ScanCommand({
-        TableName: ASSIGN_TABLE,
-        FilterExpression:
-          "pk = :pk AND begins_with(sk, :prefix) AND #st = :active",
-        ExpressionAttributeNames: {
-          "#st": "status",
-        },
-        ExpressionAttributeValues: {
-          ":pk": pk,
-          ":prefix": `ASSIGN#${day}#`,
-          ":active": "active",
-        },
-      })
-    );
-
     const assignments = (result.Items || []).sort(
       (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)
     );
