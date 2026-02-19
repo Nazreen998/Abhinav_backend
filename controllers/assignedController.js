@@ -41,7 +41,8 @@ exports.resetAndAssignManual = async (req, res) => {
       }
     }
 
-    const pk = `SALESMAN#${salesmanId}`;
+    const cleanId = salesmanId.replace("USER#", "");
+    const pk = `SALESMAN#USER#${cleanId}`;
     const day = todayYMD();
 
     // 1) Reset: mark previous ACTIVE for today as REMOVED
@@ -93,9 +94,10 @@ exports.resetAndAssignManual = async (req, res) => {
 
         assignment_id: uuidv4(),
 
-        salesmanId,
-        salesmanName,
+       salesmanId: cleanId,
 
+        salesmanName,
+        shop_id: s.shop_id,
         shop_name: s.shop_name,
         address: s.address,
         segment: String(s.segment).toLowerCase(),
@@ -140,7 +142,7 @@ exports.listAssigned = async (req, res) => {
       }
     }
 
-    const pk = `SALESMAN#${salesmanId}`;
+    const pk = `SALESMAN#USER#${salesmanId}`;
 
     const result = await ddb.send(
       new ScanCommand({
@@ -175,7 +177,7 @@ exports.removeAssigned = async (req, res) => {
     await ddb.send(
       new UpdateCommand({
         TableName: TABLE_NAME,
-        Key: { pk: `SALESMAN#${salesmanId}`, sk },
+        Key: { pk: `SALESMAN#USER#${salesmanId}`, sk },
         UpdateExpression: "SET #st = :removed, removedAt = :at",
         ExpressionAttributeNames: { "#st": "status" },
         ExpressionAttributeValues: { ":removed": "removed", ":at": new Date().toISOString() },
@@ -201,7 +203,8 @@ exports.reorderAssigned = async (req, res) => {
       return res.status(400).json({ success: false, message: "salesmanId & order[] required" });
     }
 
-    const pk = `SALESMAN#${salesmanId}`;
+    const pk = `SALESMAN#USER#${salesmanId}`;
+
     const day = todayYMD();
 
     // For simplicity: update sequence number only (SK stays same)

@@ -9,7 +9,7 @@ const todayYMD = () => new Date().toISOString().slice(0, 10);
 exports.getNextShop = async (req, res) => {
   try {
     const day = todayYMD();
-    const pk = `SALESMAN#${req.user.id}`;
+   const pk = `SALESMAN#USER#${req.user.id}`;
 
     const assignments = (result.Items || []).sort(
       (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)
