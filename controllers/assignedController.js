@@ -207,20 +207,23 @@ exports.reorderAssigned = async (req, res) => {
     // For simplicity: update sequence number only (SK stays same)
     // (Best practice: recreate items with new SK — but that's heavier. We'll keep it simple now.)
     for (let i = 0; i < order.length; i++) {
-      const sk = order[i];
-      await ddb.send(
-        new UpdateCommand({
-          TableName: TABLE_NAME,
-          Key: { pk, sk },
-          UpdateExpression: "SET sequence = :seq, updatedAt = :at",
-          ExpressionAttributeValues: {
-            ":seq": i + 1,
-            ":at": new Date().toISOString(),
-          },
-        })
-      );
-    }
+  const sk = order[i];
 
+  await ddb.send(
+    new UpdateCommand({
+      TableName: TABLE_NAME,
+      Key: { pk, sk },
+      UpdateExpression: "SET #seq = :seq, updatedAt = :at",
+      ExpressionAttributeNames: {
+        "#seq": "sequence",
+      },
+      ExpressionAttributeValues: {
+        ":seq": i + 1,
+        ":at": new Date().toISOString(),
+      },
+    })
+  );
+}
     res.json({ success: true });
   } catch (e) {
     console.error("REORDER ERROR:", e);
