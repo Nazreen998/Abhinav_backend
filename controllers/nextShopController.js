@@ -3,6 +3,7 @@ const { ScanCommand, GetCommand } = require("@aws-sdk/lib-dynamodb");
 
 const ASSIGN_TABLE = "abhinav_assignments";
 const SHOP_TABLE = "abhinav_shops";
+const VISIT_TABLE = "abhinav_visit_history"; // ✅ ADD THIS
 
 const todayYMD = () => new Date().toISOString().slice(0, 10);
 
@@ -28,16 +29,39 @@ exports.getNextShop = async (req, res) => {
       })
     );
 
-    const assignments = (result.Items || []).sort(
+    let assignments = (result.Items || []).sort(
       (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)
+    );
+
+    // ---------------------------------------------------
+    // ✅ 2. REMOVE ALREADY COMPLETED VISITS
+    // ---------------------------------------------------
+    const visitRes = await ddb.send(
+      new ScanCommand({
+        TableName: VISIT_TABLE,
+        FilterExpression: "pk = :pk AND #res = :match",
+        ExpressionAttributeNames: {
+          "#res": "result",
+        },
+        ExpressionAttributeValues: {
+          ":pk": `VISIT#USER#${req.user.id}`,
+          ":match": "match",
+        },
+      })
+    );
+
+    const visitedShopIds = (visitRes.Items || []).map(v => v.shop_id);
+
+    // ✅ Filter assignments (remove visited)
+    assignments = assignments.filter(
+      (a) => !visitedShopIds.includes(a.shop_id)
     );
 
     const finalShops = [];
 
-    // ✅ 2. Fetch shop details (lat/lng)
+    // ✅ 3. Fetch shop details (lat/lng)
     for (let assign of assignments) {
       const shopId = assign.shop_id;
-
       if (!shopId) continue;
 
       const shopRes = await ddb.send(
