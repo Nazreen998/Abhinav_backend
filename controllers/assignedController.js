@@ -212,3 +212,99 @@ exports.reorderAssigned = async (req, res) => {
     res.status(500).json({ success: false });
   }
 };
+
+// ===================================================
+// Modify Date
+// ===================================================
+exports.modifyAssignmentDate = async (req, res) => {
+  try {
+    const { salesmanId, oldSk, newDate } = req.body;
+
+    if (!salesmanId || !oldSk || !newDate) {
+      return res.status(400).json({
+        success: false,
+        message: "salesmanId, oldSk, newDate required",
+      });
+    }
+
+    const cleanId = String(salesmanId).replace("USER#", "");
+    const pk = `SALESMAN#USER#${cleanId}`;
+
+    // 1️⃣ பழைய assignment status update (delete இல்ல)
+    await ddb.send(
+      new UpdateCommand({
+        TableName: TABLE_NAME,
+        Key: { pk, sk: oldSk },
+        UpdateExpression: "SET #st = :modified",
+        ExpressionAttributeNames: { "#st": "status" },
+        ExpressionAttributeValues: {
+          ":modified": "modified",
+        },
+      })
+    );
+
+    // 2️⃣ Old record data fetch பண்ணணும்
+    // (because shop details reuse செய்யணும்)
+
+    const oldItem = await ddb.send(
+      new ScanCommand({
+        TableName: TABLE_NAME,
+        FilterExpression: "pk = :pk AND sk = :sk",
+        ExpressionAttributeValues: {
+          ":pk": pk,
+          ":sk": oldSk,
+        },
+      })
+    );
+
+    if (!oldItem.Items || oldItem.Items.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Old assignment not found",
+      });
+    }
+
+    const assignment = oldItem.Items[0];
+
+    // 3️⃣ New sequence for newDate
+    const existing = await ddb.send(
+      new ScanCommand({
+        TableName: TABLE_NAME,
+        FilterExpression:
+          "pk = :pk AND begins_with(sk, :prefix) AND #st = :active",
+        ExpressionAttributeNames: { "#st": "status" },
+        ExpressionAttributeValues: {
+          ":pk": pk,
+          ":prefix": `ASSIGN#${newDate}#`,
+          ":active": "active",
+        },
+      })
+    );
+
+    const seq = (existing.Items || []).length + 1;
+
+    // 4️⃣ New assignment insert (new SK with new date)
+    await ddb.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: {
+          ...assignment,
+
+          sk: `ASSIGN#${newDate}#${pad4(seq)}`,
+          status: "active",
+
+          movedFrom: oldSk,
+          updatedAt: new Date().toISOString(),
+        },
+      })
+    );
+
+    res.json({
+      success: true,
+      message: "Assignment date modified successfully",
+    });
+  } catch (e) {
+    console.error("MODIFY DATE ERROR:", e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+};
