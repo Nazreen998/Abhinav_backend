@@ -15,6 +15,6 @@ router.post("/remove", auth(["master", "manager"]), ctrl.removeAssigned);
 router.post("/reorder", auth(["master", "manager"]), ctrl.reorderAssigned);
 
 // ✅ MODIFY DATE ROUTE
-router.post("/modify-date", modifyAssignmentDate);
+router.post("/modify-date", ctrl.modifyAssignmentDate);
 
 module.exports = router;
