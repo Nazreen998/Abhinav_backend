@@ -34,27 +34,36 @@ exports.getNextShop = async (req, res) => {
     );
 
     // ---------------------------------------------------
-    // ✅ 2. REMOVE ALREADY COMPLETED VISITS
+    // ✅ 2. REMOVE ONLY TODAY MATCHED SHOPS
     // ---------------------------------------------------
+
     const visitRes = await ddb.send(
       new ScanCommand({
         TableName: VISIT_TABLE,
-        FilterExpression: "pk = :pk AND #res = :match",
+
+        FilterExpression:
+          "pk = :pk AND #res = :match AND contains(sk, :day)",
+
         ExpressionAttributeNames: {
           "#res": "result",
         },
+
         ExpressionAttributeValues: {
           ":pk": `VISIT#USER#${req.user.id}`,
           ":match": "match",
+          ":day": day, // ✅ today only
         },
       })
     );
 
-    const visitedShopIds = (visitRes.Items || []).map(v => v.shop_id);
+    // Only today matched shops
+    const matchedTodayShopIds = [
+      ...new Set((visitRes.Items || []).map(v => v.shop_id))
+    ];
 
-    // ✅ Filter assignments (remove visited)
+    // Remove only those from today assignment list
     assignments = assignments.filter(
-      (a) => !visitedShopIds.includes(a.shop_id)
+      (a) => !matchedTodayShopIds.includes(a.shop_id)
     );
 
     const finalShops = [];
