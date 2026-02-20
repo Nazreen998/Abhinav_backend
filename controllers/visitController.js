@@ -1,6 +1,8 @@
 const ddb = require("../config/dynamo");
 const { PutCommand, ScanCommand } = require("@aws-sdk/lib-dynamodb");
 const { v4: uuidv4 } = require("uuid");
+const { GetCommand } = require("@aws-sdk/lib-dynamodb");
+const SHOP_TABLE = "abhinav_shops";
 
 const TABLE_NAME = "abhinav_visit_history";
 
@@ -18,6 +20,19 @@ exports.saveVisit = async (req, res) => {
       });
     }
 
+     // 🔥 Fetch shop to get segment
+    const shopRes = await ddb.send(
+      new GetCommand({
+        TableName: SHOP_TABLE,
+        Key: {
+          pk: `SHOP#${shop_id}`,
+          sk: "PROFILE",
+        },
+      })
+    );
+
+    const shop = shopRes.Item;
+
     const now = new Date().toISOString();
 
     const item = {
@@ -31,7 +46,7 @@ exports.saveVisit = async (req, res) => {
 
       shop_id,
       shop_name,
-
+      segment: shop?.segment || "", 
       result: result || "matched",
 
       status: "completed",
@@ -55,23 +70,42 @@ exports.saveVisit = async (req, res) => {
 
 exports.getVisits = async (req, res) => {
   try {
-    const salesmanId = req.user.role === "salesman"
-      ? req.user.id
-      : req.query.salesmanId;
 
-    const result = await ddb.send(
-      new ScanCommand({
-        TableName: TABLE_NAME,
-        FilterExpression: "begins_with(pk, :pk)",
-        ExpressionAttributeValues: {
-          ":pk": `VISIT#USER#${salesmanId}`,
-        },
-      })
-    );
+    const salesmanId =
+      req.user.role === "salesman"
+        ? req.user.id
+        : req.query.salesmanId;
+
+    // ✅ FIX: Manager login pannumbothu query la salesmanId illa na
+    // undefined varum → empty result varum
+    // so manager/admin ku full scan allow pannuvom
+
+    let result;
+
+    if (req.user.role === "salesman") {
+      // 🔹 Salesman → only his visits
+      result = await ddb.send(
+        new ScanCommand({
+          TableName: TABLE_NAME,
+          FilterExpression: "begins_with(pk, :pk)",
+          ExpressionAttributeValues: {
+            ":pk": `VISIT#USER#${salesmanId}`,
+          },
+        })
+      );
+    } else {
+      // 🔹 Manager/Admin → all visits
+      result = await ddb.send(
+        new ScanCommand({
+          TableName: TABLE_NAME,
+        })
+      );
+    }
 
     const visits = result.Items || [];
 
     res.json({ success: true, visits });
+
   } catch (e) {
     console.error("GET VISITS ERROR:", e);
     res.status(500).json({ success: false, error: e.message });
