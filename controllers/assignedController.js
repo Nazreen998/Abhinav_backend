@@ -40,8 +40,8 @@ exports.resetAndAssignManual = async (req, res) => {
     const pk = `SALESMAN#USER#${cleanId}`;
     const day = todayYMD();
 
-    // 1️⃣ Reset previous
-    const prev = await ddb.send(
+    // ✅ Get existing active assignments count (NO RESET)
+    const existing = await ddb.send(
       new ScanCommand({
         TableName: TABLE_NAME,
         FilterExpression:
@@ -55,27 +55,16 @@ exports.resetAndAssignManual = async (req, res) => {
       })
     );
 
-    for (const it of prev.Items || []) {
-      await ddb.send(
-        new UpdateCommand({
-          TableName: TABLE_NAME,
-          Key: { pk: it.pk, sk: it.sk },
-          UpdateExpression: "SET #st = :removed, removedAt = :at",
-          ExpressionAttributeNames: { "#st": "status" },
-          ExpressionAttributeValues: {
-            ":removed": "removed",
-            ":at": new Date().toISOString(),
-          },
-        })
-      );
-    }
+    const prevCount = (existing.Items || []).length;
 
-    // 2️⃣ Insert new
+    // 2️⃣ Insert new (Append mode)
     const createdAt = new Date().toISOString();
 
     for (let i = 0; i < shops.length; i++) {
       const s = shops[i];
-      const seq = i + 1;
+
+      // ✅ Continue sequence
+      const seq = prevCount + i + 1;
 
       await ddb.send(
         new PutCommand({
@@ -109,11 +98,10 @@ exports.resetAndAssignManual = async (req, res) => {
 
     res.json({ success: true });
   } catch (e) {
-    console.error("RESET+ASSIGN ERROR:", e);
+    console.error("ASSIGN ERROR:", e);
     res.status(500).json({ success: false, error: e.message });
   }
 };
-
 // ===================================================
 // LIST ASSIGNED
 // ===================================================
