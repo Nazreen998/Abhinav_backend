@@ -108,36 +108,47 @@ exports.resetAndAssignManual = async (req, res) => {
 exports.listAssigned = async (req, res) => {
   try {
     const day = todayYMD();
-    let salesmanId = req.query.salesmanId;
+    let items = [];
 
     if (req.user.role === "salesman") {
-      salesmanId = req.user.id;
+      // Normal salesman
+      const cleanId = String(req.user.id).replace("USER#", "");
+      const pk = `SALESMAN#USER#${cleanId}`;
+
+      const result = await ddb.send(
+        new ScanCommand({
+          TableName: TABLE_NAME,
+          FilterExpression:
+            "pk = :pk AND begins_with(sk, :prefix) AND #st = :active",
+          ExpressionAttributeNames: { "#st": "status" },
+          ExpressionAttributeValues: {
+            ":pk": pk,
+            ":prefix": `ASSIGN#${day}#`,
+            ":active": "active",
+          },
+        })
+      );
+
+      items = result.Items || [];
+    } else if (req.user.role === "manager" || req.user.role === "master") {
+      // Manager / Master → get all assignments
+      const result = await ddb.send(
+        new ScanCommand({
+          TableName: TABLE_NAME,
+          FilterExpression:
+            "begins_with(sk, :prefix) AND #st = :active",
+          ExpressionAttributeNames: { "#st": "status" },
+          ExpressionAttributeValues: {
+            ":prefix": `ASSIGN#${day}#`,
+            ":active": "active",
+          },
+        })
+      );
+
+      items = result.Items || [];
     }
 
-    if (!salesmanId) {
-      return res.status(400).json({ success: false });
-    }
-
-    const cleanId = String(salesmanId).replace("USER#", "");
-    const pk = `SALESMAN#USER#${cleanId}`;
-
-    const result = await ddb.send(
-      new ScanCommand({
-        TableName: TABLE_NAME,
-        FilterExpression:
-          "pk = :pk AND begins_with(sk, :prefix) AND #st = :active",
-        ExpressionAttributeNames: { "#st": "status" },
-        ExpressionAttributeValues: {
-          ":pk": pk,
-          ":prefix": `ASSIGN#${day}#`,
-          ":active": "active",
-        },
-      })
-    );
-
-    const items = (result.Items || []).sort(
-      (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)
-    );
+    items.sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
 
     res.json({ success: true, assigned: items });
   } catch (e) {
