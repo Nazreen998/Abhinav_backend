@@ -1,6 +1,12 @@
 
 const generateShopId = require("../helpers/shopIdGenerator");
-
+const ddb = require("../config/dynamo");
+const {
+  ScanCommand,
+  PutCommand,
+  UpdateCommand,
+  GetCommand,
+} = require("@aws-sdk/lib-dynamodb");
 // ======================
 // SALESMAN → ADD PENDING SHOP
 // ======================
