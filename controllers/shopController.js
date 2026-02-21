@@ -18,23 +18,19 @@ const safeString = (v) => (v === null || v === undefined ? "" : v);
 exports.listShops = async (req, res) => {
   try {
     let filterExpression =
-      "sk = :profile AND (attribute_not_exists(isDeleted) OR isDeleted = :false)";
+      "sk = :profile AND (attribute_not_exists(isDeleted) OR isDeleted = :false) AND #status = :approved";
 
     let expressionValues = {
       ":profile": "PROFILE",
       ":false": false,
+      ":approved": "approved",
     };
 
-    let expressionNames = {};
+    let expressionNames = {
+      "#status": "status",
+    };
 
-    // 🔥 Only APPROVED shops
-    filterExpression += " AND (#status = :approved OR isApproved = :true)";
-
-    expressionValues[":approved"] = "approved";
-    expressionValues[":true"] = true;
-    expressionNames["#status"] = "status";
-
-    // ✅ Segment filter (if not master)
+    // Segment filter (if not master)
     if (req.user.role !== "master") {
       filterExpression += " AND #seg = :segment";
       expressionValues[":segment"] = req.user.segment;
@@ -54,32 +50,7 @@ exports.listShops = async (req, res) => {
       (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
     );
 
-    const safeShops = shops.map((s) => ({
-      pk: s.pk,
-      sk: s.sk,
-
-      shop_id: s.shop_id,
-      shop_name: safeString(s.shop_name),
-      address: safeString(s.address),
-      shopImage: safeString(s.shopImage),
-
-      lat: Number(s.lat ?? 0),
-      lng: Number(s.lng ?? 0),
-
-      segment: safeString(s.segment),
-
-      status: s.status,
-
-      approvedBy: safeString(s.approvedBy),
-      approvedAt: safeString(s.approvedAt),
-
-      createdByUserId: safeString(s.createdByUserId),
-      createdByUserName: safeString(s.createdByUserName),
-
-      createdAt: safeString(s.createdAt),
-    }));
-
-    res.json({ success: true, shops: safeShops });
+    res.json({ success: true, shops });
 
   } catch (err) {
     console.error("LIST SHOP ERROR:", err);
