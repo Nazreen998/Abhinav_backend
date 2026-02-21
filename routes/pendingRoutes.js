@@ -8,6 +8,6 @@ router.post("/add", auth(["salesman"]), ctrl.add);
 // MANAGER / MASTER
 router.get("/list", auth(["manager", "master"]), ctrl.listPending);
 router.post("/approve/:id", auth(["manager", "master"]), ctrl.approve);
-router.post("/reject/:id", auth(["manager", "master"]), ctrl.reject);
+router.delete("/reject/:shop_id", ctrl.reject);
 
 module.exports = router;

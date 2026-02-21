@@ -41,20 +41,7 @@ exports.listPending = async (req, res) => {
 
     const data = await PendingShop.find(filter).sort({ createdAt: -1 });
 
-    res.json({
-      success: true,
-      data: data.map(d => ({
-        _id: d._id, // 🔥 ADD THIS
-        shop_name: d.shopName,
-        address: d.address,
-        lat: d.latitude,
-        lng: d.longitude,
-        segment: d.segment,
-        createdAt: d.createdAt,
-        createdByUserName: d.createdBy,
-        shopImage: d.image
-      }))
-    });
+    res.json({ success: true, data, shops: data });
   } catch (err) {
     console.error("LIST PENDING ERROR:", err);
     res.status(500).json({ success: false });
@@ -110,17 +97,18 @@ exports.approve = async (req, res) => {
 // ======================
 exports.reject = async (req, res) => {
   try {
-    const pending = await PendingShop.findById(req.params.id);
+    const { shop_id } = req.params;
 
-    if (!pending) {
+    const result = await PendingShop.deleteOne({
+      shop_id: shop_id
+    });
+
+    if (result.deletedCount === 0) {
       return res.status(404).json({ success: false });
     }
 
-    pending.status = "rejected";
-    pending.rejectReason = req.body?.reason || "Rejected";
-    await pending.save();
-
     res.json({ success: true });
+
   } catch (err) {
     console.error("REJECT ERROR:", err);
     res.status(500).json({ success: false });
