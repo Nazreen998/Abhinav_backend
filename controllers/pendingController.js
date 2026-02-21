@@ -7,6 +7,8 @@ const {
   UpdateCommand,
   GetCommand,
 } = require("@aws-sdk/lib-dynamodb");
+
+const TABLE_NAME = "abhinav_shops";
 // ======================
 // SALESMAN → ADD PENDING SHOP
 // ======================
