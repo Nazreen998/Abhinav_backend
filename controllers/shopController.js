@@ -17,7 +17,6 @@ const safeString = (v) => (v === null || v === undefined ? "" : v);
 // ==============================
 exports.listShops = async (req, res) => {
   try {
-    // base filter
     let filterExpression =
       "sk = :profile AND (attribute_not_exists(isDeleted) OR isDeleted = :false)";
 
@@ -28,7 +27,14 @@ exports.listShops = async (req, res) => {
 
     let expressionNames = {};
 
-    // ✅ If not master, show only their segment
+    // 🔥 Only APPROVED shops
+    filterExpression += " AND (#status = :approved OR isApproved = :true)";
+
+    expressionValues[":approved"] = "approved";
+    expressionValues[":true"] = true;
+    expressionNames["#status"] = "status";
+
+    // ✅ Segment filter (if not master)
     if (req.user.role !== "master") {
       filterExpression += " AND #seg = :segment";
       expressionValues[":segment"] = req.user.segment;
@@ -40,11 +46,7 @@ exports.listShops = async (req, res) => {
         TableName: TABLE_NAME,
         FilterExpression: filterExpression,
         ExpressionAttributeValues: expressionValues,
-
-        // only add if needed
-        ...(Object.keys(expressionNames).length > 0 && {
-          ExpressionAttributeNames: expressionNames,
-        }),
+        ExpressionAttributeNames: expressionNames,
       })
     );
 
@@ -53,38 +55,32 @@ exports.listShops = async (req, res) => {
     );
 
     const safeShops = shops.map((s) => ({
-      // Dynamo keys
       pk: s.pk,
       sk: s.sk,
 
-      // Flutter support
       shop_id: s.shop_id,
       shop_name: safeString(s.shop_name),
       address: safeString(s.address),
       shopImage: safeString(s.shopImage),
-
 
       lat: Number(s.lat ?? 0),
       lng: Number(s.lng ?? 0),
 
       segment: safeString(s.segment),
 
-      // Approval
-      isApproved: s.isApproved ?? false,
+      status: s.status,
+
       approvedBy: safeString(s.approvedBy),
       approvedAt: safeString(s.approvedAt),
 
-      // Created by
       createdByUserId: safeString(s.createdByUserId),
       createdByUserName: safeString(s.createdByUserName),
-
-      // Backward compatibility
-      shopName: safeString(s.shop_name),
 
       createdAt: safeString(s.createdAt),
     }));
 
     res.json({ success: true, shops: safeShops });
+
   } catch (err) {
     console.error("LIST SHOP ERROR:", err);
     res.status(500).json({
