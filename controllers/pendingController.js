@@ -130,9 +130,12 @@ exports.rejectShop = async (req, res) => {
           sk: "PROFILE",
         },
         UpdateExpression:
-          "SET isRejected = :true, rejectedBy = :by, rejectedAt = :at",
+          "SET #status = :rejected, rejectedBy = :by, rejectedAt = :at",
+        ExpressionAttributeNames: {
+          "#status": "status",
+        },
         ExpressionAttributeValues: {
-          ":true": true,
+          ":rejected": "rejected",
           ":by": req.user?.name || "",
           ":at": new Date().toISOString(),
         },

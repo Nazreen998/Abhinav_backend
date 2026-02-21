@@ -126,10 +126,7 @@ exports.addShop = async (req, res) => {
 
       segment,
 
-      // approval
-      isApproved: false,
-      approvedBy: "",
-      approvedAt: "",
+      status: "pending",   // 🔥 ADD THIS
 
       // soft delete
       isDeleted: false,
@@ -188,9 +185,12 @@ exports.approveShop = async (req, res) => {
           sk: "PROFILE",
         },
         UpdateExpression:
-          "SET isApproved = :true, approvedBy = :by, approvedAt = :at",
+          "SET #status = :approved, approvedBy = :by, approvedAt = :at",
+        ExpressionAttributeNames: {
+          "#status": "status",
+        },
         ExpressionAttributeValues: {
-          ":true": true,
+          ":approved": "approved",
           ":by": req.user?.name || "",
           ":at": new Date().toISOString(),
         },
