@@ -97,10 +97,15 @@ exports.approve = async (req, res) => {
 // ======================
 exports.reject = async (req, res) => {
   try {
-    await PendingShop.findByIdAndUpdate(req.params.id, {
-      status: "rejected",
-      rejectReason: req.body.reason,
-    });
+    const pending = await PendingShop.findById(req.params.id);
+
+    if (!pending) {
+      return res.status(404).json({ success: false });
+    }
+
+    pending.status = "rejected";
+    pending.rejectReason = req.body?.reason || "Rejected";
+    await pending.save();
 
     res.json({ success: true });
   } catch (err) {
