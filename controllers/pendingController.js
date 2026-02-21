@@ -41,18 +41,41 @@ exports.add = async (req, res) => {
 // ======================
 exports.listPending = async (req, res) => {
   try {
-    let filter = { status: "pending" };
+    const params = {
+      TableName: TABLE_NAME,
+      FilterExpression: "#status = :pending AND isDeleted = :false",
+      ExpressionAttributeNames: {
+        "#status": "status",
+      },
+      ExpressionAttributeValues: {
+        ":pending": "pending",
+        ":false": false,
+      },
+    };
 
+    // 🔥 If Manager → filter by segment also
     if (req.user.role === "manager") {
-      filter.segment = req.user.segment;
+      params.FilterExpression += " AND segment = :segment";
+      params.ExpressionAttributeValues[":segment"] = req.user.segment;
     }
 
-    const data = await PendingShop.find(filter).sort({ createdAt: -1 });
+    const result = await ddb.send(new ScanCommand(params));
 
-    res.json({ success: true, data, shops: data });
+    const shops = result.Items || [];
+
+    // Sort latest first
+    shops.sort((a, b) =>
+      new Date(b.createdAt) - new Date(a.createdAt)
+    );
+
+    res.json({
+      success: true,
+      shops,
+    });
+
   } catch (err) {
     console.error("LIST PENDING ERROR:", err);
-    res.status(500).json({ success: false });
+    res.status(500).json({ success: false, error: err.message });
   }
 };
 
