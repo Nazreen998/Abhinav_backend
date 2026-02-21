@@ -41,29 +41,31 @@ exports.add = async (req, res) => {
 // ======================
 exports.listPending = async (req, res) => {
   try {
+
+    console.log("USER SEGMENT:", req.user?.segment);
+
     const params = {
       TableName: TABLE_NAME,
-      FilterExpression: "#status = :pending AND isDeleted = :false",
+      FilterExpression:
+        "#status = :pending AND #isDeleted = :false AND #segment = :segment",
       ExpressionAttributeNames: {
         "#status": "status",
+        "#isDeleted": "isDeleted",
+        "#segment": "segment",
       },
       ExpressionAttributeValues: {
         ":pending": "pending",
         ":false": false,
+        ":segment": req.user.segment, // user segment
       },
     };
 
-    // 🔥 If Manager → filter by segment also
-    if (req.user.role === "manager") {
-      params.FilterExpression += " AND segment = :segment";
-      params.ExpressionAttributeValues[":segment"] = req.user.segment;
-    }
-
     const result = await ddb.send(new ScanCommand(params));
+
+    console.log("SCAN RESULT:", result.Items);
 
     const shops = result.Items || [];
 
-    // Sort latest first
     shops.sort((a, b) =>
       new Date(b.createdAt) - new Date(a.createdAt)
     );
