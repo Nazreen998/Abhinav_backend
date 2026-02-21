@@ -35,7 +35,7 @@ router.put(
 // DELETE SHOP (master only)
 router.delete(
   "/delete/:id",
-  auth(["master"]),
+  auth(["master","manager"]),
   shopController.softDeleteShop
 );
 

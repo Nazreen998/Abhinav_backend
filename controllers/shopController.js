@@ -30,11 +30,11 @@ exports.listShops = async (req, res) => {
       "#status": "status",
     };
 
-    // Segment filter (if not master)
-    if (req.user.role !== "master") {
-      filterExpression += " AND #seg = :segment";
-      expressionValues[":segment"] = req.user.segment;
-      expressionNames["#seg"] = "segment";
+    // ✅ Master & Manager see ALL approved shops (no segment filter)
+    // ✅ Salesman sees ONLY his created shops
+    if (req.user.role === "salesman") {
+      filterExpression += " AND createdByUserId = :uid";
+      expressionValues[":uid"] = req.user.id;
     }
 
     const result = await ddb.send(
@@ -51,13 +51,9 @@ exports.listShops = async (req, res) => {
     );
 
     res.json({ success: true, shops });
-
   } catch (err) {
     console.error("LIST SHOP ERROR:", err);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch shops",
-    });
+    res.status(500).json({ success: false, message: "Failed to fetch shops" });
   }
 };
 // ==============================
