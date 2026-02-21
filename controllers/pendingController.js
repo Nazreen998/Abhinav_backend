@@ -95,22 +95,46 @@ exports.approve = async (req, res) => {
 // ======================
 // MANAGER / MASTER → REJECT
 // ======================
-exports.reject = async (req, res) => {
+exports.rejectShop = async (req, res) => {
   try {
-    const { shop_id } = req.params;
+    const shopId = req.params.id;
 
-    const result = await PendingShop.deleteOne({
-      shop_id: shop_id
-    });
+    // Check exists
+    const existing = await ddb.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: { pk: `SHOP#${shopId}`, sk: "PROFILE" },
+      })
+    );
 
-    if (result.deletedCount === 0) {
-      return res.status(404).json({ success: false });
+    if (!existing.Item) {
+      return res.status(404).json({
+        success: false,
+        message: "Shop not found",
+      });
     }
 
-    res.json({ success: true });
+    await ddb.send(
+      new UpdateCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          pk: `SHOP#${shopId}`,
+          sk: "PROFILE",
+        },
+        UpdateExpression:
+          "SET isRejected = :true, rejectedBy = :by, rejectedAt = :at",
+        ExpressionAttributeValues: {
+          ":true": true,
+          ":by": req.user?.name || "",
+          ":at": new Date().toISOString(),
+        },
+      })
+    );
 
-  } catch (err) {
-    console.error("REJECT ERROR:", err);
-    res.status(500).json({ success: false });
+    res.json({ success: true, message: "Shop rejected successfully" });
+
+  } catch (e) {
+    console.error("REJECT SHOP ERROR:", e);
+    res.status(500).json({ success: false, error: e.message });
   }
 };
