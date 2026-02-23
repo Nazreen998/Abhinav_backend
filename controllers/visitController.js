@@ -8,7 +8,7 @@ const TABLE_NAME = "abhinav_visit_history";
 
 exports.saveVisit = async (req, res) => {
   try {
-    const { shop_id, shop_name, result } = req.body;
+    const { shop_id, shop_name, result,distance } = req.body;
 
     const salesmanId = req.user.id;
     const salesmanName = req.user.name;
@@ -49,6 +49,8 @@ exports.saveVisit = async (req, res) => {
       segment: shop?.segment || "", 
       result: result || "matched",
 
+      distance: distance || 0, 
+
       status: "completed",
 
       createdAt: now,
@@ -61,7 +63,7 @@ exports.saveVisit = async (req, res) => {
       })
     );
 
-    res.json({ success: true });
+    res.json({ success: true});
   } catch (e) {
     console.error("SAVE VISIT ERROR:", e);
     res.status(500).json({ success: false, error: e.message });
