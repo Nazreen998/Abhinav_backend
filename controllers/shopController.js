@@ -6,43 +6,50 @@ const {
   GetCommand,
 } = require("@aws-sdk/lib-dynamodb");
 
+const XLSX = require("xlsx");
+const path = require("path");
 const { v4: uuidv4 } = require("uuid");
 
-const TABLE_NAME = "abhinav_shops";
-
-const safeString = (v) => (v === null || v === undefined ? "" : v);
+const SHOP_TABLE = "abhinav_shops";
+const USER_TABLE = "abhinav_users";
 
 // ==============================
-// LIST SHOPS (master/manager/salesman) - SEGMENT WISE
+// LIST SHOPS (Role Based + Search)
 // ==============================
 exports.listShops = async (req, res) => {
   try {
     let filterExpression =
-      "sk = :profile AND (attribute_not_exists(isDeleted) OR isDeleted = :false) AND #status = :approved";
+      "sk = :profile AND (attribute_not_exists(isDeleted) OR isDeleted = :false)";
 
     let expressionValues = {
       ":profile": "PROFILE",
       ":false": false,
-      ":approved": "approved",
     };
 
-    let expressionNames = {
-      "#status": "status",
-    };
+    let expressionNames = {};
 
-    // ✅ Master & Manager see ALL approved shops (no segment filter)
-    // ✅ Salesman sees ONLY his created shops
     if (req.user.role === "salesman") {
       filterExpression += " AND createdByUserId = :uid";
       expressionValues[":uid"] = req.user.id;
+    } else {
+      filterExpression += " AND #status = :approved";
+      expressionValues[":approved"] = "approved";
+      expressionNames["#status"] = "status";
+    }
+
+    // 🔍 Search support
+    if (req.query.search) {
+      filterExpression += " AND contains(shop_name, :search)";
+      expressionValues[":search"] = req.query.search;
     }
 
     const result = await ddb.send(
       new ScanCommand({
-        TableName: TABLE_NAME,
+        TableName: SHOP_TABLE,
         FilterExpression: filterExpression,
         ExpressionAttributeValues: expressionValues,
-        ExpressionAttributeNames: expressionNames,
+        ExpressionAttributeNames:
+          Object.keys(expressionNames).length ? expressionNames : undefined,
       })
     );
 
@@ -56,8 +63,9 @@ exports.listShops = async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to fetch shops" });
   }
 };
+
 // ==============================
-// ADD SHOP (salesman/manager)
+// ADD SHOP
 // ==============================
 exports.addShop = async (req, res) => {
   try {
@@ -72,86 +80,110 @@ exports.addShop = async (req, res) => {
 
     const shopId = uuidv4();
 
-    // If you upload image in multer middleware
-    const shopImage =
-      req.file?.location || req.file?.path || req.body.shopImage || "";
-
     const shop = {
       pk: `SHOP#${shopId}`,
       sk: "PROFILE",
-
       shop_id: shopId,
       shop_name,
       address: address || "",
-
       lat: Number(lat) || 0,
       lng: Number(lng) || 0,
-
       segment,
-
-      status: "pending",   // 🔥 ADD THIS
-
-      // soft delete
+      status: "pending",
       isDeleted: false,
-
-      // image
-      shopImage,
-
-      // created by
+      shopImage: req.file?.location || req.file?.path || "",
       createdByUserId: req.user?.id || "",
       createdByUserName: req.user?.name || "",
-
       createdAt: new Date().toISOString(),
     };
 
     await ddb.send(
       new PutCommand({
-        TableName: TABLE_NAME,
+        TableName: SHOP_TABLE,
         Item: shop,
       })
     );
 
     res.json({ success: true, shop });
   } catch (e) {
-    console.error("ADD SHOP ERROR:", e);
     res.status(500).json({ success: false, error: e.message });
   }
 };
 
 // ==============================
-// APPROVE SHOP (manager/master)
+// BULK UPLOAD FROM EXCEL
+// ==============================
+exports.bulkUploadFromExcel = async (req, res) => {
+  try {
+    const filePath = path.join(__dirname, "../data/location.xlsx");
+
+    const workbook = XLSX.readFile(filePath);
+    const sheetName = workbook.SheetNames[0];
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
+    for (const row of rows) {
+      const userResult = await ddb.send(
+        new ScanCommand({
+          TableName: USER_TABLE,
+          FilterExpression: "username = :uname",
+          ExpressionAttributeValues: {
+            ":uname": row.so_username,
+          },
+        })
+      );
+
+      if (!userResult.Items.length) continue;
+
+      const soUser = userResult.Items[0];
+      const shopId = uuidv4();
+
+      const shopItem = {
+        pk: `SHOP#${shopId}`,
+        sk: "PROFILE",
+        shop_id: shopId,
+        shop_name: row.shop_name,
+        address: row.address,
+        region: row.region,
+        lat: Number(row.lat) || 0,
+        lng: Number(row.lng) || 0,
+        segment: row.segment,
+        status: "approved", // auto approved
+        isDeleted: false,
+        shopImage: "",
+        createdByUserId: soUser.user_id,
+        createdByUserName: soUser.username,
+        createdAt: new Date().toISOString(),
+      };
+
+      await ddb.send(
+        new PutCommand({
+          TableName: SHOP_TABLE,
+          Item: shopItem,
+        })
+      );
+    }
+
+    res.json({ success: true, message: "Excel upload completed" });
+  } catch (error) {
+    console.error("EXCEL ERROR:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ==============================
+// APPROVE SHOP
 // ==============================
 exports.approveShop = async (req, res) => {
   try {
     const shopId = req.params.id;
 
-    // check exists
-    const existing = await ddb.send(
-      new GetCommand({
-        TableName: TABLE_NAME,
-        Key: { pk: `SHOP#${shopId}`, sk: "PROFILE" },
-      })
-    );
-
-    if (!existing.Item) {
-      return res.status(404).json({
-        success: false,
-        message: "Shop not found",
-      });
-    }
-
     await ddb.send(
       new UpdateCommand({
-        TableName: TABLE_NAME,
-        Key: {
-          pk: `SHOP#${shopId}`,
-          sk: "PROFILE",
-        },
+        TableName: SHOP_TABLE,
+        Key: { pk: `SHOP#${shopId}`, sk: "PROFILE" },
         UpdateExpression:
           "SET #status = :approved, approvedBy = :by, approvedAt = :at",
-        ExpressionAttributeNames: {
-          "#status": "status",
-        },
+        ExpressionAttributeNames: { "#status": "status" },
         ExpressionAttributeValues: {
           ":approved": "approved",
           ":by": req.user?.name || "",
@@ -160,95 +192,54 @@ exports.approveShop = async (req, res) => {
       })
     );
 
-    res.json({ success: true, message: "Shop approved successfully" });
+    res.json({ success: true, message: "Shop approved" });
   } catch (e) {
-    console.error("APPROVE SHOP ERROR:", e);
     res.status(500).json({ success: false, error: e.message });
   }
 };
 
 // ==============================
-// UPDATE SHOP (manager/master)
+// UPDATE SHOP
 // ==============================
 exports.updateShop = async (req, res) => {
   try {
     const shopId = req.params.id;
-
     const { shop_name, address, segment, lat, lng } = req.body;
 
-    // check exists
-    const existing = await ddb.send(
-      new GetCommand({
-        TableName: TABLE_NAME,
+    await ddb.send(
+      new UpdateCommand({
+        TableName: SHOP_TABLE,
         Key: { pk: `SHOP#${shopId}`, sk: "PROFILE" },
+        UpdateExpression:
+          "SET shop_name = :shop_name, address = :address, #seg = :segment, lat = :lat, lng = :lng",
+        ExpressionAttributeNames: { "#seg": "segment" },
+        ExpressionAttributeValues: {
+          ":shop_name": shop_name,
+          ":address": address,
+          ":segment": segment,
+          ":lat": Number(lat),
+          ":lng": Number(lng),
+        },
       })
     );
 
-    if (!existing.Item) {
-      return res.status(404).json({
-        success: false,
-        message: "Shop not found",
-      });
-    }
-
-    await ddb.send(
-  new UpdateCommand({
-    TableName: TABLE_NAME,
-    Key: {
-      pk: `SHOP#${shopId}`,
-      sk: "PROFILE",
-    },
-    UpdateExpression:
-      "SET shop_name = :shop_name, address = :address, #seg = :segment, lat = :lat, lng = :lng",
-    ExpressionAttributeNames: {
-      "#seg": "segment",
-    },
-    ExpressionAttributeValues: {
-      ":shop_name": shop_name ?? existing.Item.shop_name,
-      ":address": address ?? existing.Item.address,
-      ":segment": segment ?? existing.Item.segment,
-      ":lat": Number(lat ?? existing.Item.lat ?? 0),
-      ":lng": Number(lng ?? existing.Item.lng ?? 0),
-    },
-  })
-);
-
-    res.json({ success: true, message: "Shop updated successfully" });
+    res.json({ success: true, message: "Shop updated" });
   } catch (e) {
-    console.error("UPDATE SHOP ERROR:", e);
     res.status(500).json({ success: false, error: e.message });
   }
 };
 
 // ==============================
-// SOFT DELETE SHOP (master only)
+// SOFT DELETE
 // ==============================
 exports.softDeleteShop = async (req, res) => {
   try {
     const shopId = req.params.id;
 
-    // check exists
-    const existing = await ddb.send(
-      new GetCommand({
-        TableName: TABLE_NAME,
-        Key: { pk: `SHOP#${shopId}`, sk: "PROFILE" },
-      })
-    );
-
-    if (!existing.Item) {
-      return res.status(404).json({
-        success: false,
-        message: "Shop not found",
-      });
-    }
-
     await ddb.send(
       new UpdateCommand({
-        TableName: TABLE_NAME,
-        Key: {
-          pk: `SHOP#${shopId}`,
-          sk: "PROFILE",
-        },
+        TableName: SHOP_TABLE,
+        Key: { pk: `SHOP#${shopId}`, sk: "PROFILE" },
         UpdateExpression: "SET isDeleted = :true, deletedAt = :at",
         ExpressionAttributeValues: {
           ":true": true,
@@ -257,9 +248,8 @@ exports.softDeleteShop = async (req, res) => {
       })
     );
 
-    res.json({ success: true, message: "Shop deleted successfully" });
+    res.json({ success: true, message: "Shop deleted" });
   } catch (e) {
-    console.error("DELETE SHOP ERROR:", e);
     res.status(500).json({ success: false, error: e.message });
   }
 };

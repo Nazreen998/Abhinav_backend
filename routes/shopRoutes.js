@@ -3,7 +3,9 @@ const shopController = require("../controllers/shopController");
 const auth = require("../middleware/auth");
 const uploadShopImage = require("../middleware/uploadShopImage");
 
+// ==============================
 // ADD SHOP (salesman + manager)
+// ==============================
 router.post(
   "/add",
   auth(["salesman", "manager"]),
@@ -11,31 +13,48 @@ router.post(
   shopController.addShop
 );
 
-// LIST SHOPS (master + manager + salesman)
+// ==============================
+// BULK UPLOAD FROM EXCEL (manager + master)
+// ==============================
+router.post(
+  "/bulk-excel-upload",
+  auth(["master", "manager"]),
+  shopController.bulkUploadFromExcel
+);
+
+// ==============================
+// LIST SHOPS
+// ==============================
 router.get(
   "/list",
   auth(["master", "manager", "salesman"]),
   shopController.listShops
 );
 
-// APPROVE SHOP (manager + master)
+// ==============================
+// APPROVE SHOP
+// ==============================
 router.put(
   "/approve/:id",
   auth(["master", "manager"]),
   shopController.approveShop
 );
 
-// UPDATE SHOP (manager + master)
+// ==============================
+// UPDATE SHOP
+// ==============================
 router.put(
   "/update/:id",
   auth(["master", "manager"]),
   shopController.updateShop
 );
 
-// DELETE SHOP (master only)
+// ==============================
+// DELETE SHOP
+// ==============================
 router.delete(
   "/delete/:id",
-  auth(["master","manager"]),
+  auth(["master", "manager"]),
   shopController.softDeleteShop
 );
 
