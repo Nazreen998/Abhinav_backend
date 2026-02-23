@@ -115,61 +115,84 @@ exports.addShop = async (req, res) => {
 // ==============================
 exports.bulkUploadFromExcel = async (req, res) => {
   try {
-    const filePath = path.join(__dirname, "../data/location.xlsx");
+    if (!req.file?.path) {
+      return res.status(400).json({ success: false, message: "Excel file required" });
+    }
 
-    const workbook = XLSX.readFile(filePath);
+    const workbook = XLSX.readFile(req.file.path);
     const sheetName = workbook.SheetNames[0];
     const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
 
+    console.log("Rows count:", rows.length);
+    if (!rows.length) {
+      return res.status(400).json({ success: false, message: "Excel empty / header mismatch" });
+    }
+
+    let inserted = 0;
+    let missingSO = [];
+
     for (const row of rows) {
+      const soName = String(row.so_username || "").trim();
+
       const userResult = await ddb.send(
         new ScanCommand({
           TableName: USER_TABLE,
-          FilterExpression: "username = :uname",
-          ExpressionAttributeValues: {
-            ":uname": row.so_username,
-          },
+          FilterExpression: "username = :uname OR #name = :uname",
+          ExpressionAttributeNames: { "#name": "name" },
+          ExpressionAttributeValues: { ":uname": soName },
         })
       );
 
-      if (!userResult.Items.length) continue;
+      if (!userResult.Items?.length) {
+        missingSO.push(soName);
+        continue;
+      }
 
       const soUser = userResult.Items[0];
-      const shopId = uuidv4();
+      const soId =
+        soUser.user_id ||
+        soUser.id ||
+        (typeof soUser.pk === "string" ? soUser.pk.replace("USER#", "") : "");
 
-      const shopItem = {
-        pk: `SHOP#${shopId}`,
-        sk: "PROFILE",
-        shop_id: shopId,
-        shop_name: row.shop_name,
-        address: row.address,
-        region: row.region,
-        lat: Number(row.lat) || 0,
-        lng: Number(row.lng) || 0,
-        segment: row.segment,
-        status: "approved", // auto approved
-        isDeleted: false,
-        shopImage: "",
-        createdByUserId: soUser.user_id,
-        createdByUserName: soUser.username,
-        createdAt: new Date().toISOString(),
-      };
+      const shopId = uuidv4();
 
       await ddb.send(
         new PutCommand({
           TableName: SHOP_TABLE,
-          Item: shopItem,
+          Item: {
+            pk: `SHOP#${shopId}`,
+            sk: "PROFILE",
+            shop_id: shopId,
+            shop_name: row.shop_name,
+            address: row.address || "",
+            region: row.region || "",
+            lat: Number(row.lat) || 0,
+            lng: Number(row.lng) || 0,
+            segment: row.segment || "",
+            status: "approved",
+            isDeleted: false,
+            shopImage: "",
+            createdByUserId: soId,
+            createdByUserName: soUser.username || soUser.name || soName,
+            createdAt: new Date().toISOString(),
+          },
         })
       );
+
+      inserted++;
     }
 
-    res.json({ success: true, message: "Excel upload completed" });
-  } catch (error) {
-    console.error("EXCEL ERROR:", error);
-    res.status(500).json({ success: false, error: error.message });
+    return res.json({
+      success: true,
+      message: "Excel upload completed",
+      inserted,
+      missingSO,
+    });
+  } catch (e) {
+    console.error("EXCEL UPLOAD ERROR:", e);
+    return res.status(500).json({ success: false, error: e.message });
   }
 };
-
 // ==============================
 // APPROVE SHOP
 // ==============================

@@ -2,7 +2,8 @@ const router = require("express").Router();
 const shopController = require("../controllers/shopController");
 const auth = require("../middleware/auth");
 const uploadShopImage = require("../middleware/uploadShopImage");
-
+const multer = require("multer");
+const upload = multer({ dest: "uploads/" });
 // ==============================
 // ADD SHOP (salesman + manager)
 // ==============================
@@ -19,9 +20,9 @@ router.post(
 router.post(
   "/bulk-excel-upload",
   auth(["master", "manager"]),
+  upload.single("file"),
   shopController.bulkUploadFromExcel
 );
-
 // ==============================
 // LIST SHOPS
 // ==============================
