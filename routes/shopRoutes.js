@@ -3,7 +3,13 @@ const shopController = require("../controllers/shopController");
 const auth = require("../middleware/auth");
 const uploadShopImage = require("../middleware/uploadShopImage");
 const multer = require("multer");
-const upload = multer({ dest: "uploads/" });
+
+const upload = multer({
+  dest: "uploads/",
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB
+  },
+});
 // ==============================
 // ADD SHOP (salesman + manager)
 // ==============================
