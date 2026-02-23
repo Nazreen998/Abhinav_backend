@@ -149,12 +149,13 @@ exports.bulkUploadFromExcel = async (req, res) => {
       }
 
       const soUser = userResult.Items[0];
-      const soId =
-        soUser.user_id ||
-        soUser.id ||
-        (typeof soUser.pk === "string" ? soUser.pk.replace("USER#", "") : "");
-
       const shopId = uuidv4();
+const soId =
+  soUser.user_id ||
+  soUser.id ||
+  (typeof soUser.pk === "string"
+    ? soUser.pk.replace("USER#", "")
+    : "");
 
       await ddb.send(
         new PutCommand({
@@ -172,8 +173,8 @@ exports.bulkUploadFromExcel = async (req, res) => {
             status: "approved",
             isDeleted: false,
             shopImage: "",
-            createdByUserId: soId,
-            createdByUserName: soUser.username || soUser.name || soName,
+createdByUserId: soId,
+createdByUserName: soUser.username || soUser.name || row.so_username,
             createdAt: new Date().toISOString(),
           },
         })
