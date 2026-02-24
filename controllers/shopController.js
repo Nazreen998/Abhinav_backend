@@ -69,7 +69,7 @@ exports.listShops = async (req, res) => {
 // ==============================
 exports.addShop = async (req, res) => {
   try {
-    const { shop_name, address, lat, lng, segment } = req.body;
+    const { shop_name, address, lat, lng, segment,shopImage } = req.body;
 
     if (!shop_name || !segment) {
       return res.status(400).json({
@@ -91,7 +91,8 @@ exports.addShop = async (req, res) => {
       segment,
       status: "pending",
       isDeleted: false,
-      shopImage: req.file?.location || req.file?.path || "",
+      // ✅ SAVE BASE64 DIRECTLY
+      shopImage: shopImage || "",
       createdByUserId: req.user?.id || "",
       createdByUserName: req.user?.name || "",
       createdAt: new Date().toISOString(),
@@ -230,20 +231,31 @@ exports.updateShop = async (req, res) => {
     const shopId = req.params.id;
     const { shop_name, address, segment, lat, lng } = req.body;
 
+    let updateExp =
+      "SET shop_name = :shop_name, address = :address, #seg = :segment";
+
+    const attrNames = { "#seg": "segment" };
+
+    const attrValues = {
+      ":shop_name": shop_name,
+      ":address": address,
+      ":segment": segment,
+    };
+
+    // ✅ Only update lat/lng if provided
+    if (lat !== undefined && lng !== undefined) {
+      updateExp += ", lat = :lat, lng = :lng";
+      attrValues[":lat"] = Number(lat);
+      attrValues[":lng"] = Number(lng);
+    }
+
     await ddb.send(
       new UpdateCommand({
         TableName: SHOP_TABLE,
         Key: { pk: `SHOP#${shopId}`, sk: "PROFILE" },
-        UpdateExpression:
-          "SET shop_name = :shop_name, address = :address, #seg = :segment, lat = :lat, lng = :lng",
-        ExpressionAttributeNames: { "#seg": "segment" },
-        ExpressionAttributeValues: {
-          ":shop_name": shop_name,
-          ":address": address,
-          ":segment": segment,
-          ":lat": Number(lat),
-          ":lng": Number(lng),
-        },
+        UpdateExpression: updateExp,
+        ExpressionAttributeNames: attrNames,
+        ExpressionAttributeValues: attrValues,
       })
     );
 
