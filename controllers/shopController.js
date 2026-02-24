@@ -231,20 +231,31 @@ exports.updateShop = async (req, res) => {
     const shopId = req.params.id;
     const { shop_name, address, segment, lat, lng } = req.body;
 
+    let updateExp =
+      "SET shop_name = :shop_name, address = :address, #seg = :segment";
+
+    const attrNames = { "#seg": "segment" };
+
+    const attrValues = {
+      ":shop_name": shop_name,
+      ":address": address,
+      ":segment": segment,
+    };
+
+    // ✅ Only update lat/lng if provided
+    if (lat !== undefined && lng !== undefined) {
+      updateExp += ", lat = :lat, lng = :lng";
+      attrValues[":lat"] = Number(lat);
+      attrValues[":lng"] = Number(lng);
+    }
+
     await ddb.send(
       new UpdateCommand({
         TableName: SHOP_TABLE,
         Key: { pk: `SHOP#${shopId}`, sk: "PROFILE" },
-        UpdateExpression:
-          "SET shop_name = :shop_name, address = :address, #seg = :segment, lat = :lat, lng = :lng",
-        ExpressionAttributeNames: { "#seg": "segment" },
-        ExpressionAttributeValues: {
-          ":shop_name": shop_name,
-          ":address": address,
-          ":segment": segment,
-          ":lat": Number(lat),
-          ":lng": Number(lng),
-        },
+        UpdateExpression: updateExp,
+        ExpressionAttributeNames: attrNames,
+        ExpressionAttributeValues: attrValues,
       })
     );
 
