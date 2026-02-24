@@ -69,7 +69,7 @@ exports.listShops = async (req, res) => {
 // ==============================
 exports.addShop = async (req, res) => {
   try {
-    const { shop_name, address, lat, lng, segment } = req.body;
+    const { shop_name, address, lat, lng, segment,shopImage } = req.body;
 
     if (!shop_name || !segment) {
       return res.status(400).json({
@@ -91,7 +91,8 @@ exports.addShop = async (req, res) => {
       segment,
       status: "pending",
       isDeleted: false,
-      shopImage: req.file?.location || req.file?.path || "",
+      // ✅ SAVE BASE64 DIRECTLY
+      shopImage: shopImage || "",
       createdByUserId: req.user?.id || "",
       createdByUserName: req.user?.name || "",
       createdAt: new Date().toISOString(),
