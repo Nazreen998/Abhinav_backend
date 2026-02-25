@@ -110,26 +110,31 @@ exports.addShop = async (req, res) => {
     res.status(500).json({ success: false, error: e.message });
   }
 };
-
 // ==============================
-// BULK UPLOAD FROM EXCEL
+// BULK UPLOAD FROM EXCEL (SMART UPSERT + IMAGE)
 // ==============================
 exports.bulkUploadFromExcel = async (req, res) => {
   try {
-    if (!req.file?.path) {
-      return res.status(400).json({ success: false, message: "Excel file required" });
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Excel file required",
+      });
     }
 
-    const workbook = XLSX.readFile(req.file.path);
+    const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
     const sheetName = workbook.SheetNames[0];
     const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
 
-    console.log("Rows count:", rows.length);
     if (!rows.length) {
-      return res.status(400).json({ success: false, message: "Excel empty / header mismatch" });
+      return res.status(400).json({
+        success: false,
+        message: "Excel empty / header mismatch",
+      });
     }
 
     let inserted = 0;
+    let updated = 0;
     let missingSO = [];
 
     for (const row of rows) {
@@ -150,49 +155,103 @@ exports.bulkUploadFromExcel = async (req, res) => {
       }
 
       const soUser = userResult.Items[0];
-      const shopId = uuidv4();
-const soId =
-  soUser.user_id ||
-  soUser.id ||
-  (typeof soUser.pk === "string"
-    ? soUser.pk.replace("USER#", "")
-    : "");
 
-      await ddb.send(
-        new PutCommand({
+      const soId =
+        soUser.user_id ||
+        soUser.id ||
+        (typeof soUser.pk === "string"
+          ? soUser.pk.replace("USER#", "")
+          : "");
+
+      // 🔎 Check existing shop (shop_name + region match)
+      const existingShop = await ddb.send(
+        new ScanCommand({
           TableName: SHOP_TABLE,
-          Item: {
-            pk: `SHOP#${shopId}`,
-            sk: "PROFILE",
-            shop_id: shopId,
-            shop_name: row.shop_name,
-            address: row.address || "",
-            region: row.region || "",
-            lat: Number(row.lat) || 0,
-            lng: Number(row.lng) || 0,
-            segment: row.segment || "",
-            status: "approved",
-            isDeleted: false,
-            shopImage: "",
-createdByUserId: soId,
-createdByUserName: soUser.username || soUser.name || row.so_username,
-            createdAt: new Date().toISOString(),
+          FilterExpression:
+            "sk = :profile AND shop_name = :name AND region = :region",
+          ExpressionAttributeValues: {
+            ":profile": "PROFILE",
+            ":name": row.shop_name,
+            ":region": row.region || "",
           },
         })
       );
 
-      inserted++;
+      if (existingShop.Items.length > 0) {
+        // =====================
+        // ✅ UPDATE EXISTING
+        // =====================
+        const shop = existingShop.Items[0];
+
+        await ddb.send(
+          new UpdateCommand({
+            TableName: SHOP_TABLE,
+            Key: { pk: shop.pk, sk: "PROFILE" },
+            UpdateExpression:
+              "SET shop_name = :name, region = :region, address = :address, segment = :segment, lat = :lat, lng = :lng, shopImage = :img, createdByUserId = :uid, createdByUserName = :uname",
+            ExpressionAttributeValues: {
+              ":name": row.shop_name,
+              ":region": row.region || "",
+              ":address": row.address || "",
+              ":segment": row.segment || "",
+              ":lat": Number(row.lat) || 0,
+              ":lng": Number(row.lng) || 0,
+              ":img": row.shopImage || "",
+              ":uid": soId,
+              ":uname":
+                soUser.username || soUser.name || row.so_username,
+            },
+          })
+        );
+
+        updated++;
+      } else {
+        // =====================
+        // 🆕 INSERT NEW
+        // =====================
+        const shopId = uuidv4();
+
+        await ddb.send(
+          new PutCommand({
+            TableName: SHOP_TABLE,
+            Item: {
+              pk: `SHOP#${shopId}`,
+              sk: "PROFILE",
+              shop_id: shopId,
+              shop_name: row.shop_name,
+              address: row.address || "",
+              region: row.region || "",
+              lat: Number(row.lat) || 0,
+              lng: Number(row.lng) || 0,
+              segment: row.segment || "",
+              status: "approved",
+              isDeleted: false,
+              shopImage: row.shopImage || "",
+              createdByUserId: soId,
+              createdByUserName:
+                soUser.username || soUser.name || row.so_username,
+              createdAt: new Date().toISOString(),
+            },
+          })
+        );
+
+        inserted++;
+      }
     }
 
     return res.json({
       success: true,
       message: "Excel upload completed",
       inserted,
+      updated,
       missingSO,
     });
   } catch (e) {
     console.error("EXCEL UPLOAD ERROR:", e);
-    return res.status(500).json({ success: false, error: e.message });
+    return res.status(500).json({
+      success: false,
+      error: e.message,
+    });
   }
 };
 // ==============================

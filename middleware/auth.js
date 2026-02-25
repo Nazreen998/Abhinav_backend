@@ -17,7 +17,7 @@ module.exports = (allowedRoles = []) => {
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // ✅ CORRECT DYNAMODB KEY STRUCTURE
+      // ✅ Get user from DynamoDB
       const result = await ddb.send(
         new GetCommand({
           TableName: "abhinav_users",
@@ -34,26 +34,33 @@ module.exports = (allowedRoles = []) => {
         return res.status(401).json({ message: "User not found" });
       }
 
+      // ✅ Role Check
       if (allowedRoles.length && !allowedRoles.includes(user.role)) {
-        return res
-          .status(403)
-          .json({ message: "Forbidden: Insufficient permissions" });
+        return res.status(403).json({
+          message: "Forbidden: Insufficient permissions",
+        });
       }
 
+      // ✅ Attach FULL user info to request
       req.user = {
         id: user.user_id,
         name: user.name,
         role: user.role,
         segment: user.segment || "",
         mobile: user.mobile || "",
+
+        // 🔥 IMPORTANT (for company filtering)
+        companyId: user.companyId,
+        companyName: user.companyName,
       };
 
       next();
     } catch (error) {
       console.error("AUTH ERROR:", error);
-      return res
-        .status(401)
-        .json({ message: "Invalid token", error: error.message });
+      return res.status(401).json({
+        message: "Invalid token",
+        error: error.message,
+      });
     }
   };
 };

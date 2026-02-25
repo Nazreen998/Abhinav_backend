@@ -9,6 +9,72 @@ const {
 const jwt = require("jsonwebtoken");
 const { v4: uuidv4 } = require("uuid");
 
+const TABLE_NAME = "abhinav_users";
+
+// ==============================
+// REGISTER MASTER (COMPANY CREATE)
+// ==============================
+exports.registerMaster = async (req, res) => {
+  try {
+    const { companyId, companyName, name, mobile, password } = req.body;
+
+    if (!companyId || !companyName || !name || !mobile || !password) {
+      return res.status(400).json({ success: false, message: "All fields required" });
+    }
+
+    // 🔍 Check if company already exists
+    const companyCheck = await ddb.send(
+      new ScanCommand({
+        TableName: TABLE_NAME,
+        FilterExpression: "companyId = :cid",
+        ExpressionAttributeValues: {
+          ":cid": companyId,
+        },
+      })
+    );
+
+    if (companyCheck.Items.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Company ID already exists",
+      });
+    }
+
+    const userId = uuidv4();
+
+    const masterUser = {
+      pk: `USER#${userId}`,
+      sk: "PROFILE",
+
+      user_id: userId,
+      name,
+      mobile,
+      password,
+      role: "MASTER",
+      segment: "",
+
+      companyId,
+      companyName,
+
+      createdByUserId: userId,
+      createdByUserName: name,
+
+      createdAt: new Date().toISOString(),
+    };
+
+    await ddb.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: masterUser,
+      })
+    );
+
+    res.json({ success: true, message: "Master registered successfully" });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+};
+
 // ==============================
 // LOGIN USER
 // ==============================
@@ -18,7 +84,7 @@ exports.login = async (req, res) => {
 
     const result = await ddb.send(
       new ScanCommand({
-        TableName: "abhinav_users",
+        TableName: TABLE_NAME,
         FilterExpression: "mobile = :m",
         ExpressionAttributeValues: {
           ":m": phone,
@@ -41,6 +107,8 @@ exports.login = async (req, res) => {
         role: user.role,
         segment: user.segment,
         phone: user.mobile,
+        companyId: user.companyId,
+        companyName: user.companyName,
       },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
@@ -53,11 +121,19 @@ exports.login = async (req, res) => {
 };
 
 // ==============================
-// ADD USER
+// ADD USER (ONLY MASTER)
 // ==============================
 exports.addUser = async (req, res) => {
   try {
     const { name, mobile, role, segment, password } = req.body;
+
+    // ⚠️ Only MASTER can create users
+    if (req.user.role !== "MASTER") {
+      return res.status(403).json({
+        success: false,
+        message: "Only MASTER can create users",
+      });
+    }
 
     const userId = uuidv4();
 
@@ -71,12 +147,19 @@ exports.addUser = async (req, res) => {
       role,
       segment: segment || "",
       password,
+
+      companyId: req.user.companyId,
+      companyName: req.user.companyName,
+
+      createdByUserId: req.user.id,
+      createdByUserName: req.user.name,
+
       createdAt: new Date().toISOString(),
     };
 
     await ddb.send(
       new PutCommand({
-        TableName: "abhinav_users",
+        TableName: TABLE_NAME,
         Item: newUser,
       })
     );
@@ -88,13 +171,17 @@ exports.addUser = async (req, res) => {
 };
 
 // ==============================
-// GET ALL USERS
+// GET USERS (COMPANY WISE)
 // ==============================
 exports.getAllUsers = async (req, res) => {
   try {
     const result = await ddb.send(
       new ScanCommand({
-        TableName: "abhinav_users",
+        TableName: TABLE_NAME,
+        FilterExpression: "companyId = :cid",
+        ExpressionAttributeValues: {
+          ":cid": req.user.companyId,
+        },
       })
     );
 
@@ -113,7 +200,7 @@ exports.updateUser = async (req, res) => {
 
     await ddb.send(
       new UpdateCommand({
-        TableName: "abhinav_users",
+        TableName: TABLE_NAME,
         Key: {
           pk: `USER#${req.params.id}`,
           sk: "PROFILE",
@@ -150,7 +237,7 @@ exports.deleteUser = async (req, res) => {
 
     await ddb.send(
       new DeleteCommand({
-        TableName: "abhinav_users",
+        TableName: TABLE_NAME,
         Key: {
           pk: `USER#${userId}`,
           sk: "PROFILE",
