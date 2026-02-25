@@ -65,4 +65,12 @@ router.delete(
   shopController.softDeleteShop
 );
 
+// ==============================
+// IMAGE UPDATE
+// ==============================
+router.put(
+  "/update-image/:id",
+  auth(["salesman"]), // 🔥 only salesman
+  shopController.updateShopImage
+);
 module.exports = router;

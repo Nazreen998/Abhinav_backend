@@ -289,3 +289,44 @@ exports.softDeleteShop = async (req, res) => {
     res.status(500).json({ success: false, error: e.message });
   }
 };
+
+// ==============================
+// UPDATE SHOP IMAGE
+// ==============================
+exports.updateShopImage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { shopImage } = req.body;
+
+    if (!shopImage) {
+      return res.status(400).json({
+        success: false,
+        message: "shopImage required",
+      });
+    }
+
+    await ddb.send(
+      new UpdateCommand({
+        TableName: SHOP_TABLE,
+        Key: {
+          pk: `SHOP#${id}`,
+          sk: "PROFILE",
+        },
+        UpdateExpression: "SET shopImage = :img",
+        ExpressionAttributeValues: {
+          ":img": shopImage,
+        },
+      })
+    );
+
+    res.json({
+      success: true,
+      message: "Shop image updated successfully",
+    });
+  } catch (e) {
+    res.status(500).json({
+      success: false,
+      error: e.message,
+    });
+  }
+};
