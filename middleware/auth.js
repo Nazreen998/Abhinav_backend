@@ -22,7 +22,7 @@ module.exports = (allowedRoles = []) => {
         new GetCommand({
           TableName: "abhinav_users",
           Key: {
-            pk: `USER#${decoded.id}`,
+            pk: `USER#${decoded.user_id}`,
             sk: "PROFILE",
           },
         })
