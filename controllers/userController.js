@@ -112,9 +112,9 @@ exports.login = async (req, res) => {
 
     const token = jwt.sign(
       {
-        user_id: user.user_id,
-        name: user.name,
+        id: user.user_id,
         role: user.role,
+        name: user.name,
         companyId: user.companyId,
         companyName: user.companyName,
       },
@@ -172,7 +172,7 @@ exports.addUser = async (req, res) => {
       companyId: req.user.companyId,
       companyName: req.user.companyName,
 
-      createdByUserId: req.user.id,
+      createdByUserId: req.user.user_id,
       createdByUserName: req.user.name,
 
       createdAt: new Date().toISOString(),
