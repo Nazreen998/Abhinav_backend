@@ -41,13 +41,13 @@ exports.add = async (req, res) => {
 // ======================
 exports.listPending = async (req, res) => {
   try {
+    console.log("USER ROLE:", req.user.role);
+    console.log("USER SEGMENT:", req.user.segment);
 
-    console.log("USER SEGMENT:", req.user?.segment);
-
-    const params = {
+    let params = {
       TableName: TABLE_NAME,
       FilterExpression:
-        "#status = :pending AND #isDeleted = :false AND #segment = :segment",
+        "#status = :pending AND #isDeleted = :false",
       ExpressionAttributeNames: {
         "#status": "status",
         "#isDeleted": "isDeleted",
@@ -58,12 +58,20 @@ exports.listPending = async (req, res) => {
       },
     };
 
-    const result = await ddb.send(new ScanCommand(params));
+    // 🔥 MASTER → all segments
+    // 🔥 MANAGER → only their segment
+    if (req.user.role.toLowerCase() !== "master") {
+      params.FilterExpression += " AND #segment = :segment";
+      params.ExpressionAttributeNames["#segment"] = "segment";
+      params.ExpressionAttributeValues[":segment"] =
+        (req.user.segment || "").toLowerCase().trim();
+    }
 
-    console.log("SCAN RESULT:", result.Items);
+    const result = await ddb.send(new ScanCommand(params));
 
     const shops = result.Items || [];
 
+    // sort latest first
     shops.sort((a, b) =>
       new Date(b.createdAt) - new Date(a.createdAt)
     );
@@ -78,7 +86,6 @@ exports.listPending = async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 };
-
 // ======================
 // MANAGER / MASTER → APPROVE
 // ======================
