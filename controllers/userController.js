@@ -55,7 +55,7 @@ exports.registerMaster = async (req, res) => {
       mobile,
       password,
       role: "MASTER",
-      segment: "",
+      segment: "ALL",
 
       companyId,
       companyName,
