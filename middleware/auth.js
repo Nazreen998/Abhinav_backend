@@ -34,12 +34,15 @@ module.exports = (allowedRoles = []) => {
         return res.status(401).json({ message: "User not found" });
       }
 
-      // ✅ Role Check
-      if (allowedRoles.length && !allowedRoles.includes(user.role)) {
-        return res.status(403).json({
-          message: "Forbidden: Insufficient permissions",
-        });
-      }
+      // ✅ Role Check (case insensitive)
+const userRole = (user.role || "").toLowerCase();
+const allowed = allowedRoles.map(r => r.toLowerCase());
+
+if (!allowed.includes(userRole)) {
+  return res.status(403).json({
+    message: "Forbidden: Insufficient permissions",
+  });
+}
 
       // ✅ Attach FULL user info to request
       req.user = {
