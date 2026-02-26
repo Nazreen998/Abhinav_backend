@@ -111,16 +111,15 @@ exports.login = async (req, res) => {
       return res.status(400).json({ message: "Wrong password" });
 
     const token = jwt.sign(
-  {
-    user_id: user.user_id,
-    name: user.name,
-    role: user.role,
-    companyId: user.companyId,
-    companyName: user.companyName,
-  },
-  process.env.JWT_SECRET,
-  { expiresIn: "7d" }
-);
+      {
+        id: user.user_id,
+        role: user.role,
+        companyId: user.companyId,
+        companyName: user.companyName,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
 
     res.json({ success: true, token, user });
 
@@ -168,6 +167,7 @@ exports.addUser = async (req, res) => {
       segment: segment || "",
       password,
 
+      // ✅ MASTER company auto assign
       companyId: req.user.companyId,
       companyName: req.user.companyName,
 
