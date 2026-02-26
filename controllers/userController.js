@@ -111,15 +111,16 @@ exports.login = async (req, res) => {
       return res.status(400).json({ message: "Wrong password" });
 
     const token = jwt.sign(
-      {
-        id: user.user_id,
-        role: user.role,
-        companyId: user.companyId,
-        companyName: user.companyName,
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+  {
+    user_id: user.user_id,
+    name: user.name,
+    role: user.role,
+    companyId: user.companyId,
+    companyName: user.companyName,
+  },
+  process.env.JWT_SECRET,
+  { expiresIn: "7d" }
+);
 
     res.json({ success: true, token, user });
 
