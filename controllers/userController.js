@@ -114,6 +114,7 @@ exports.login = async (req, res) => {
       {
         id: user.user_id,
         role: user.role,
+        name: user.name,
         companyId: user.companyId,
         companyName: user.companyName,
       },
@@ -156,14 +157,11 @@ exports.addUser = async (req, res) => {
       segment: role === "MASTER" ? "ALL" : segment || "",
       password,
 
-      companyId: req.user.companyId,
-      companyName: req.user.companyName,
-
       // ✅ MASTER company auto assign
       companyId: req.user.companyId,
       companyName: req.user.companyName,
 
-      createdByUserId: req.user.user_id,
+      createdByUserId: req.user.id,
       createdByUserName: req.user.name,
 
       createdAt: new Date().toISOString(),
