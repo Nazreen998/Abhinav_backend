@@ -33,6 +33,8 @@ exports.registerMaster = async (req, res) => {
       new PutCommand({
         TableName: COMPANY_TABLE,
         Item: {
+          pk: `COMPANY#${companyId}`,
+          sk: "PROFILE",
           companyId,
           companyName,
           createdAt: new Date().toISOString(),
