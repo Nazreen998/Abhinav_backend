@@ -9,15 +9,15 @@ router.post("/register-master", userController.registerMaster);
 router.post("/login", userController.login);
 
 // ADD USER (MASTER only)
-router.post("/add", auth, userController.addUser);
+router.post("/add", auth(["MASTER"]), userController.addUser);
 
-// GET USERS (company wise)
-router.get("/", auth, userController.getAllUsers);
+// GET USERS
+router.get("/", auth(), userController.getAllUsers);
 
 // UPDATE USER
-router.put("/:id", auth, userController.updateUser);
+router.put("/:id", auth(), userController.updateUser);
 
 // DELETE USER
-router.delete("/:id", auth, userController.deleteUser);
+router.delete("/:id", auth(), userController.deleteUser);
 
 module.exports = router;
