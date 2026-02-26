@@ -152,9 +152,14 @@ exports.addUser = async (req, res) => {
       name,
       mobile,
       role,
-      segment: segment || "",
+      // 🔥 If MASTER creates SALES / STAFF etc
+      segment: role === "MASTER" ? "ALL" : segment || "",
       password,
 
+      companyId: req.user.companyId,
+      companyName: req.user.companyName,
+
+      // ✅ MASTER company auto assign
       companyId: req.user.companyId,
       companyName: req.user.companyName,
 
