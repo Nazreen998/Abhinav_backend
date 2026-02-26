@@ -172,7 +172,7 @@ exports.addUser = async (req, res) => {
       companyId: req.user.companyId,
       companyName: req.user.companyName,
 
-      createdByUserId: req.user.user_id,
+      createdByUserId: req.user.id,
       createdByUserName: req.user.name,
 
       createdAt: new Date().toISOString(),
