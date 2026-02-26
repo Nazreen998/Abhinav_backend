@@ -51,12 +51,10 @@ exports.listPending = async (req, res) => {
       ExpressionAttributeNames: {
         "#status": "status",
         "#isDeleted": "isDeleted",
-        "#segment": "segment",
       },
       ExpressionAttributeValues: {
         ":pending": "pending",
         ":false": false,
-        ":segment": req.user.segment, // user segment
       },
     };
 
