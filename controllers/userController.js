@@ -134,7 +134,17 @@ exports.login = async (req, res) => {
 // =====================================================
 exports.addUser = async (req, res) => {
   try {
+    console.log("🔥 ADD USER CONTROLLER HIT");
+
+    if (!req.user) {
+      console.log("❌ req.user is undefined");
+      return res.status(500).json({ message: "req.user missing" });
+    }
+
+    console.log("👤 Logged in User Role:", req.user.role);
+
     if (req.user.role !== "MASTER") {
+      console.log("❌ NOT MASTER");
       return res.status(403).json({
         message: "Only MASTER can create users",
       });
@@ -142,7 +152,9 @@ exports.addUser = async (req, res) => {
 
     const { name, mobile, role, segment, password } = req.body;
 
-    const userId = uuidv4();
+    console.log("📦 Request Body:", req.body);
+
+    const userId = require("uuid").v4();
 
     const newUser = {
       pk: `USER#${userId}`,
@@ -152,14 +164,9 @@ exports.addUser = async (req, res) => {
       name,
       mobile,
       role,
-      // 🔥 If MASTER creates SALES / STAFF etc
-      segment: role === "MASTER" ? "ALL" : segment || "",
+      segment: segment || "",
       password,
 
-      companyId: req.user.companyId,
-      companyName: req.user.companyName,
-
-      // ✅ MASTER company auto assign
       companyId: req.user.companyId,
       companyName: req.user.companyName,
 
@@ -169,21 +176,24 @@ exports.addUser = async (req, res) => {
       createdAt: new Date().toISOString(),
     };
 
+    console.log("💾 BEFORE DB SAVE");
+
     await ddb.send(
-      new PutCommand({
-        TableName: USER_TABLE,
+      new (require("@aws-sdk/lib-dynamodb").PutCommand)({
+        TableName: "abhinav_users",
         Item: newUser,
       })
     );
 
+    console.log("✅ AFTER DB SAVE");
+
     res.json({ success: true, user: newUser });
 
   } catch (e) {
+    console.error("🔥 ADD USER ERROR:", e);
     res.status(500).json({ error: e.message });
   }
 };
-
-
 // =====================================================
 // GET USERS (Company Wise)
 // =====================================================
