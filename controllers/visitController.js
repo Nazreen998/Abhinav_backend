@@ -11,12 +11,51 @@ const TABLE_NAME = "abhinav_visit_history";
 exports.deleteVisit = async (req, res) => {
   try {
     const { pk, sk } = req.body;
-
     if (!pk || !sk) {
       return res.status(400).json({
         success: false,
         message: "pk & sk required",
       });
+    }
+
+    // ✅ read the visit first (to enforce company/segment rules)
+    const visitRes = await ddb.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: { pk, sk },
+      })
+    );
+
+    const visit = visitRes.Item;
+
+    if (!visit) {
+      return res.status(404).json({
+        success: false,
+        message: "Visit not found",
+      });
+    }
+
+    // ✅ company isolation
+    if (visit.companyId !== req.user.companyId) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden (other company data)",
+      });
+    }
+
+    const role = (req.user.role || "").toLowerCase();
+
+    // ✅ manager can delete only same segment
+    if (role === "manager") {
+      const userSeg = (req.user.segment || "").toLowerCase().trim();
+      const visitSeg = (visit.segment || "").toLowerCase().trim();
+
+      if (userSeg !== visitSeg) {
+        return res.status(403).json({
+          success: false,
+          message: "Forbidden (other segment visit)",
+        });
+      }
     }
 
     await ddb.send(
@@ -32,7 +71,6 @@ exports.deleteVisit = async (req, res) => {
     res.status(500).json({ success: false, error: e.message });
   }
 };
-
 // ============================
 // SAVE VISIT (8 DAYS TTL)
 // ============================
