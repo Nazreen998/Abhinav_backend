@@ -87,32 +87,34 @@ exports.listShops = async (req, res) => {
 // ==============================
 exports.addShop = async (req, res) => {
   try {
-    const { shop_name, address, lat, lng, segment,shopImage } = req.body;
-
-    if (!shop_name || !segment) {
-      return res.status(400).json({
-        success: false,
-        message: "shop_name & segment required",
-      });
-    }
+    const { shop_name, address, lat, lng, segment, shopImage } = req.body;
 
     const shopId = uuidv4();
 
     const shop = {
       pk: `SHOP#${shopId}`,
       sk: "PROFILE",
+
       shop_id: shopId,
       shop_name,
       address: address || "",
       lat: Number(lat) || 0,
       lng: Number(lng) || 0,
-      segment,
+
+      segment: (segment || "").toLowerCase(),
+
       status: "pending",
       isDeleted: false,
-      // ✅ SAVE BASE64 DIRECTLY
+
+      // 🔥 ADD THIS (CRITICAL)
+      companyId: req.user.companyId,
+      companyName: req.user.companyName,
+
       shopImage: shopImage || "",
-      createdByUserId: req.user?.id || "",
-      createdByUserName: req.user?.name || "",
+
+      createdByUserId: req.user.id,
+      createdByUserName: req.user.name,
+
       createdAt: new Date().toISOString(),
     };
 
@@ -124,6 +126,7 @@ exports.addShop = async (req, res) => {
     );
 
     res.json({ success: true, shop });
+
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }

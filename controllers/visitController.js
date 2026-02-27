@@ -8,19 +8,11 @@ const TABLE_NAME = "abhinav_visit_history";
 
 exports.saveVisit = async (req, res) => {
   try {
-    const { shop_id, shop_name, result,distance } = req.body;
+    const { shop_id, shop_name, result, distance } = req.body;
 
     const salesmanId = req.user.id;
     const salesmanName = req.user.name;
 
-    if (!shop_id) {
-      return res.status(400).json({
-        success: false,
-        message: "shop_id required",
-      });
-    }
-
-     // 🔥 Fetch shop to get segment
     const shopRes = await ddb.send(
       new GetCommand({
         TableName: SHOP_TABLE,
@@ -46,11 +38,15 @@ exports.saveVisit = async (req, res) => {
 
       shop_id,
       shop_name,
-      segment: shop?.segment || "", 
+
+      // 🔥 ADD THIS
+      companyId: req.user.companyId,
+      companyName: req.user.companyName,
+
+      segment: (shop?.segment || "").toLowerCase(),
+
       result: result || "matched",
-
-      distance: distance || 0, 
-
+      distance: distance || 0,
       status: "completed",
 
       createdAt: now,
@@ -63,53 +59,51 @@ exports.saveVisit = async (req, res) => {
       })
     );
 
-    res.json({ success: true});
+    res.json({ success: true });
+
   } catch (e) {
-    console.error("SAVE VISIT ERROR:", e);
     res.status(500).json({ success: false, error: e.message });
   }
 };
-
 exports.getVisits = async (req, res) => {
   try {
 
-    const salesmanId =
-      req.user.role === "salesman"
-        ? req.user.id
-        : req.query.salesmanId;
+    const role = req.user.role.toLowerCase();
 
-    // ✅ FIX: Manager login pannumbothu query la salesmanId illa na
-    // undefined varum → empty result varum
-    // so manager/admin ku full scan allow pannuvom
+    let filterExpression = "#companyId = :cid";
 
-    let result;
+    let expressionNames = {
+      "#companyId": "companyId",
+    };
 
-    if (req.user.role === "salesman") {
-      // 🔹 Salesman → only his visits
-      result = await ddb.send(
-        new ScanCommand({
-          TableName: TABLE_NAME,
-          FilterExpression: "begins_with(pk, :pk)",
-          ExpressionAttributeValues: {
-            ":pk": `VISIT#USER#${salesmanId}`,
-          },
-        })
-      );
-    } else {
-      // 🔹 Manager/Admin → all visits
-      result = await ddb.send(
-        new ScanCommand({
-          TableName: TABLE_NAME,
-        })
-      );
+    let expressionValues = {
+      ":cid": req.user.companyId,
+    };
+
+    if (role === "salesman") {
+      filterExpression += " AND salesmanId = :uid";
+      expressionValues[":uid"] = req.user.id;
     }
 
-    const visits = result.Items || [];
+    if (role === "manager") {
+      filterExpression += " AND #segment = :segment";
+      expressionNames["#segment"] = "segment";
+      expressionValues[":segment"] =
+        req.user.segment.toLowerCase();
+    }
 
-    res.json({ success: true, visits });
+    const result = await ddb.send(
+      new ScanCommand({
+        TableName: TABLE_NAME,
+        FilterExpression: filterExpression,
+        ExpressionAttributeNames: expressionNames,
+        ExpressionAttributeValues: expressionValues,
+      })
+    );
+
+    res.json({ success: true, visits: result.Items || [] });
 
   } catch (e) {
-    console.error("GET VISITS ERROR:", e);
     res.status(500).json({ success: false, error: e.message });
   }
 };
