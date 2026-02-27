@@ -147,7 +147,7 @@ exports.bulkUploadFromExcel = async (req, res) => {
     const sheetName = workbook.SheetNames[0];
     const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
 
-    if (!rows.length) {
+    if (!rows || rows.length === 0) {
       return res.status(400).json({
         success: false,
         message: "Excel empty / header mismatch",
@@ -158,19 +158,31 @@ exports.bulkUploadFromExcel = async (req, res) => {
     let updated = 0;
     let missingSO = [];
 
-    for (const row of rows) {
+    for (const rawRow of rows) {
+
+      // 🔥 Normalize keys (remove spaces)
+      const row = {};
+      Object.keys(rawRow).forEach(key => {
+        row[key.trim()] = rawRow[key];
+      });
+
       const soName = String(row.so_username || "").trim();
+
+      if (!soName) {
+        missingSO.push("EMPTY_SO_USERNAME");
+        continue;
+      }
 
       const userResult = await ddb.send(
         new ScanCommand({
           TableName: USER_TABLE,
-          FilterExpression: "username = :uname OR #name = :uname",
+          FilterExpression: "#name = :uname",
           ExpressionAttributeNames: { "#name": "name" },
           ExpressionAttributeValues: { ":uname": soName },
         })
       );
 
-      if (!userResult.Items?.length) {
+      if (!userResult.Items || userResult.Items.length === 0) {
         missingSO.push(soName);
         continue;
       }
@@ -179,32 +191,29 @@ exports.bulkUploadFromExcel = async (req, res) => {
 
       const soId =
         soUser.user_id ||
-        soUser.id ||
         (typeof soUser.pk === "string"
           ? soUser.pk.replace("USER#", "")
           : "");
 
-      // 🔎 Check existing shop (shop_name + region match)
+      // 🔎 Duplicate check (company wise)
       const existingShop = await ddb.send(
-  new ScanCommand({
-    TableName: SHOP_TABLE,
-    FilterExpression:
-      "sk = :profile AND #companyId = :cid AND shop_name = :name AND region = :region",
-    ExpressionAttributeNames: {
-      "#companyId": "companyId",
-    },
-    ExpressionAttributeValues: {
-      ":profile": "PROFILE",
-      ":cid": req.user.companyId,   // 🔥 VERY IMPORTANT
-      ":name": row.shop_name,
-      ":region": row.region || "",
-    },
-  })
-);
-      if (existingShop.Items.length > 0) {
-        // =====================
-        // ✅ UPDATE EXISTING
-        // =====================
+        new ScanCommand({
+          TableName: SHOP_TABLE,
+          FilterExpression:
+            "sk = :profile AND #companyId = :cid AND shop_name = :name",
+          ExpressionAttributeNames: {
+            "#companyId": "companyId",
+          },
+          ExpressionAttributeValues: {
+            ":profile": "PROFILE",
+            ":cid": req.user.companyId,
+            ":name": row.shop_name,
+          },
+        })
+      );
+
+      if (existingShop.Items && existingShop.Items.length > 0) {
+
         const shop = existingShop.Items[0];
 
         await ddb.send(
@@ -212,27 +221,27 @@ exports.bulkUploadFromExcel = async (req, res) => {
             TableName: SHOP_TABLE,
             Key: { pk: shop.pk, sk: "PROFILE" },
             UpdateExpression:
-              "SET shop_name = :name, region = :region, address = :address, segment = :segment, lat = :lat, lng = :lng, shopImage = :img, createdByUserId = :uid, createdByUserName = :uname",
+              "SET shop_name = :name, region = :region, address = :address, #segment = :segment, lat = :lat, lng = :lng, createdByUserId = :uid, createdByUserName = :uname",
+            ExpressionAttributeNames: {
+              "#segment": "segment",
+            },
             ExpressionAttributeValues: {
               ":name": row.shop_name,
               ":region": row.region || "",
               ":address": row.address || "",
-              ":segment": row.segment || "",
+              ":segment": (row.segment || "").toLowerCase(),
               ":lat": Number(row.lat) || 0,
               ":lng": Number(row.lng) || 0,
-              ":img": row.shopImage || "",
               ":uid": soId,
-              ":uname":
-                soUser.username || soUser.name || row.so_username,
+              ":uname": soUser.name,
             },
           })
         );
 
         updated++;
+
       } else {
-        // =====================
-        // 🆕 INSERT NEW
-        // =====================
+
         const shopId = uuidv4();
 
         await ddb.send(
@@ -250,12 +259,10 @@ exports.bulkUploadFromExcel = async (req, res) => {
               segment: (row.segment || "").toLowerCase(),
               status: "approved",
               isDeleted: false,
-              shopImage: row.shopImage || "",
               createdByUserId: soId,
-              createdByUserName:
-                soUser.username || soUser.name || row.so_username,
-                 companyId: req.user.companyId,
-                 companyName: req.user.companyName,
+              createdByUserName: soUser.name,
+              companyId: req.user.companyId,
+              companyName: req.user.companyName,
               createdAt: new Date().toISOString(),
             },
           })
@@ -267,11 +274,11 @@ exports.bulkUploadFromExcel = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "Excel upload completed",
       inserted,
       updated,
       missingSO,
     });
+
   } catch (e) {
     console.error("EXCEL UPLOAD ERROR:", e);
     return res.status(500).json({
