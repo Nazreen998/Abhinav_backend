@@ -1,156 +1,109 @@
-
-const generateShopId = require("../helpers/shopIdGenerator");
 const ddb = require("../config/dynamo");
 const {
   ScanCommand,
-  PutCommand,
   UpdateCommand,
   GetCommand,
 } = require("@aws-sdk/lib-dynamodb");
 
 const TABLE_NAME = "abhinav_shops";
-// ======================
-// SALESMAN → ADD PENDING SHOP
-// ======================
-exports.add = async (req, res) => {
-  try {
-    const { shopName, address, latitude, longitude, image } = req.body;
 
-    await PendingShop.create({
-      shopName,
-      address,
-      latitude,
-      longitude,
-      image,
-
-      salesmanId: req.user.id,
-      createdBy: req.user.name,        // 🔥 SALESMAN NAME
-      segment: req.user.segment,
-      status: "pending",
-    });
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error("ADD PENDING ERROR:", err);
-    res.status(500).json({ success: false, message: "Add failed" });
-  }
-};
 
 // ======================
 // MANAGER / MASTER → LIST PENDING
 // ======================
 exports.listPending = async (req, res) => {
   try {
-    console.log("USER ROLE:", req.user.role);
-    console.log("USER SEGMENT:", req.user.segment);
 
-    let params = {
-      TableName: TABLE_NAME,
-      FilterExpression:
-        "#status = :pending AND #isDeleted = :false",
-      ExpressionAttributeNames: {
-        "#status": "status",
-        "#isDeleted": "isDeleted",
-      },
-      ExpressionAttributeValues: {
-        ":pending": "pending",
-        ":false": false,
-      },
+    const role = (req.user.role || "").toLowerCase();
+
+    let filterExpression =
+      "#status = :pending AND #isDeleted = :false AND #companyId = :cid";
+
+    let expressionAttributeNames = {
+      "#status": "status",
+      "#isDeleted": "isDeleted",
+      "#companyId": "companyId",
     };
 
-    // 🔥 MASTER → all segments
-    // 🔥 MANAGER → only their segment
-    if (req.user.role.toLowerCase() !== "master") {
-      params.FilterExpression += " AND #segment = :segment";
-      params.ExpressionAttributeNames["#segment"] = "segment";
-      params.ExpressionAttributeValues[":segment"] =
+    let expressionAttributeValues = {
+      ":pending": "pending",
+      ":false": false,
+      ":cid": req.user.companyId,
+    };
+
+    // Manager → segment wise
+    if (role === "manager") {
+      filterExpression += " AND #segment = :segment";
+      expressionAttributeNames["#segment"] = "segment";
+      expressionAttributeValues[":segment"] =
         (req.user.segment || "").toLowerCase().trim();
     }
 
-    const result = await ddb.send(new ScanCommand(params));
-
-    const shops = result.Items || [];
-
-    // sort latest first
-    shops.sort((a, b) =>
-      new Date(b.createdAt) - new Date(a.createdAt)
+    const result = await ddb.send(
+      new ScanCommand({
+        TableName: TABLE_NAME,
+        FilterExpression: filterExpression,
+        ExpressionAttributeNames: expressionAttributeNames,
+        ExpressionAttributeValues: expressionAttributeValues,
+      })
     );
 
     res.json({
       success: true,
-      shops,
+      shops: result.Items || [],
     });
 
   } catch (err) {
     console.error("LIST PENDING ERROR:", err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
-// ======================
-// MANAGER / MASTER → APPROVE
-// ======================
-exports.approve = async (req, res) => {
-  try {
-    const pending = await PendingShop.findById(req.params.id);
-
-    if (!pending) {
-      return res.status(404).json({ success: false });
-    }
-
-    const shopId = await generateShopId(); // ✅ ALWAYS UNIQUE
-
-    await Shop.create({
-      shop_id: shopId,
-      shop_name: pending.shopName,
-      address: pending.address,
-      lat: pending.latitude,
-      lng: pending.longitude,
-      segment: pending.segment,
-      status: "approved",
-      created_by: pending.createdBy,
-      image: pending.image || null,
-    });
-
-    pending.status = "approved";
-    await pending.save();
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error("APPROVE ERROR:", err);
-
-    // 🔥 duplicate shop_id safety
-    if (err.code === 11000) {
-      return res.status(409).json({
-        success: false,
-        message: "Duplicate Shop ID, try again",
-      });
-    }
-
     res.status(500).json({ success: false });
   }
 };
 
+
 // ======================
-// MANAGER / MASTER → REJECT
+// APPROVE SHOP
 // ======================
-exports.rejectShop = async (req, res) => {
+exports.approve = async (req, res) => {
   try {
+
     const shopId = req.params.id;
 
-    // Check exists
-    const existing = await ddb.send(
-      new GetCommand({
+    await ddb.send(
+      new UpdateCommand({
         TableName: TABLE_NAME,
-        Key: { pk: `SHOP#${shopId}`, sk: "PROFILE" },
+        Key: {
+          pk: `SHOP#${shopId}`,
+          sk: "PROFILE",
+        },
+        UpdateExpression:
+          "SET #status = :approved, approvedBy = :by, approvedAt = :at",
+        ExpressionAttributeNames: {
+          "#status": "status",
+        },
+        ExpressionAttributeValues: {
+          ":approved": "approved",
+          ":by": req.user.name,
+          ":at": new Date().toISOString(),
+        },
       })
     );
 
-    if (!existing.Item) {
-      return res.status(404).json({
-        success: false,
-        message: "Shop not found",
-      });
-    }
+    res.json({ success: true });
+
+  } catch (err) {
+    console.error("APPROVE ERROR:", err);
+    res.status(500).json({ success: false });
+  }
+};
+
+
+// ======================
+// REJECT SHOP
+// ======================
+exports.rejectShop = async (req, res) => {
+  try {
+
+    const shopId = req.params.id;
 
     await ddb.send(
       new UpdateCommand({
@@ -166,16 +119,16 @@ exports.rejectShop = async (req, res) => {
         },
         ExpressionAttributeValues: {
           ":rejected": "rejected",
-          ":by": req.user?.name || "",
+          ":by": req.user.name,
           ":at": new Date().toISOString(),
         },
       })
     );
 
-    res.json({ success: true, message: "Shop rejected successfully" });
+    res.json({ success: true });
 
   } catch (e) {
     console.error("REJECT SHOP ERROR:", e);
-    res.status(500).json({ success: false, error: e.message });
+    res.status(500).json({ success: false });
   }
 };
