@@ -136,81 +136,89 @@ exports.addShop = async (req, res) => {
 // ==============================
 exports.bulkUploadFromExcel = async (req, res) => {
   try {
-    if (!req.file) {
+    // =========================
+    // 1️⃣ FILE VALIDATION
+    // =========================
+    if (!req.file || !req.file.buffer) {
       return res.status(400).json({
         success: false,
         message: "Excel file required",
       });
     }
 
-    if (!req.file || !req.file.buffer) {
-  return res.status(400).json({
-    success: false,
-    message: "File upload failed or buffer missing",
-  });
-}
-
-const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
-
-if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
-  return res.status(400).json({
-    success: false,
-    message: "Excel has no sheets",
-  });
-}
-
-const sheetName = workbook.SheetNames[0];
-
-const sheet = workbook.Sheets[sheetName];
-
-if (!sheet) {
-  return res.status(400).json({
-    success: false,
-    message: "Sheet not readable",
-  });
-}
-
-const rows = XLSX.utils.sheet_to_json(sheet);
-
-if (!rows || rows.length === 0) {
-  return res.status(400).json({
-    success: false,
-    message: "Excel empty",
-  });
-}
-
-    if (!rows || rows.length === 0) {
+    let workbook;
+    try {
+      workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+    } catch (err) {
       return res.status(400).json({
         success: false,
-        message: "Excel empty / header mismatch",
+        message: "Invalid Excel file",
       });
     }
 
+    const sheetNames = workbook.SheetNames;
+    if (!Array.isArray(sheetNames) || sheetNames.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Excel has no sheets",
+      });
+    }
+
+    const sheet = workbook.Sheets[sheetNames[0]];
+    if (!sheet) {
+      return res.status(400).json({
+        success: false,
+        message: "Unable to read sheet",
+      });
+    }
+
+    const rawRows = XLSX.utils.sheet_to_json(sheet);
+    if (!Array.isArray(rawRows) || rawRows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Excel empty",
+      });
+    }
+
+    // =========================
+    // 2️⃣ PROCESSING
+    // =========================
     let inserted = 0;
     let updated = 0;
     let missingSO = [];
 
-    for (const rawRow of rows) {
-
-      // 🔥 Normalize keys (remove spaces)
+    for (const rawRow of rawRows) {
+      // 🔥 Normalize Excel headers
       const row = {};
-      Object.keys(rawRow).forEach(key => {
+      Object.keys(rawRow).forEach((key) => {
         row[key.trim()] = rawRow[key];
       });
 
+      const shopName = String(row.shop_name || "").trim();
       const soName = String(row.so_username || "").trim();
+
+      if (!shopName) continue;
 
       if (!soName) {
         missingSO.push("EMPTY_SO_USERNAME");
         continue;
       }
 
+      // =========================
+      // 3️⃣ FIND SALESMAN
+      // =========================
       const userResult = await ddb.send(
         new ScanCommand({
           TableName: USER_TABLE,
-          FilterExpression: "#name = :uname",
-          ExpressionAttributeNames: { "#name": "name" },
-          ExpressionAttributeValues: { ":uname": soName },
+          FilterExpression: "#name = :uname AND #companyId = :cid",
+          ExpressionAttributeNames: {
+            "#name": "name",
+            "#companyId": "companyId",
+          },
+          ExpressionAttributeValues: {
+            ":uname": soName,
+            ":cid": req.user.companyId,
+          },
         })
       );
 
@@ -220,32 +228,39 @@ if (!rows || rows.length === 0) {
       }
 
       const soUser = userResult.Items[0];
-
       const soId =
         soUser.user_id ||
         (typeof soUser.pk === "string"
           ? soUser.pk.replace("USER#", "")
           : "");
 
-      // 🔎 Duplicate check (company wise)
+      // =========================
+      // 4️⃣ DUPLICATE CHECK (COMPANY SAFE)
+      // =========================
       const existingShop = await ddb.send(
         new ScanCommand({
           TableName: SHOP_TABLE,
           FilterExpression:
-            "sk = :profile AND #companyId = :cid AND shop_name = :name",
+            "sk = :profile AND #companyId = :cid AND shop_name = :name AND (attribute_not_exists(isDeleted) OR isDeleted = :false)",
           ExpressionAttributeNames: {
             "#companyId": "companyId",
           },
           ExpressionAttributeValues: {
             ":profile": "PROFILE",
             ":cid": req.user.companyId,
-            ":name": row.shop_name,
+            ":name": shopName,
+            ":false": false,
           },
         })
       );
 
-      if (existingShop.Items && existingShop.Items.length > 0) {
-
+      // =========================
+      // 5️⃣ UPDATE IF EXISTS
+      // =========================
+      if (
+        Array.isArray(existingShop.Items) &&
+        existingShop.Items.length > 0
+      ) {
         const shop = existingShop.Items[0];
 
         await ddb.send(
@@ -253,12 +268,12 @@ if (!rows || rows.length === 0) {
             TableName: SHOP_TABLE,
             Key: { pk: shop.pk, sk: "PROFILE" },
             UpdateExpression:
-              "SET shop_name = :name, region = :region, address = :address, #segment = :segment, lat = :lat, lng = :lng, createdByUserId = :uid, createdByUserName = :uname",
+              "SET shop_name = :name, region = :region, address = :address, #segment = :segment, lat = :lat, lng = :lng, createdByUserId = :uid, createdByUserName = :uname, companyId = :cid, companyName = :cname",
             ExpressionAttributeNames: {
               "#segment": "segment",
             },
             ExpressionAttributeValues: {
-              ":name": row.shop_name,
+              ":name": shopName,
               ":region": row.region || "",
               ":address": row.address || "",
               ":segment": (row.segment || "").toLowerCase(),
@@ -266,14 +281,17 @@ if (!rows || rows.length === 0) {
               ":lng": Number(row.lng) || 0,
               ":uid": soId,
               ":uname": soUser.name,
+              ":cid": req.user.companyId,
+              ":cname": req.user.companyName,
             },
           })
         );
 
         updated++;
-
       } else {
-
+        // =========================
+        // 6️⃣ INSERT NEW
+        // =========================
         const shopId = uuidv4();
 
         await ddb.send(
@@ -283,7 +301,7 @@ if (!rows || rows.length === 0) {
               pk: `SHOP#${shopId}`,
               sk: "PROFILE",
               shop_id: shopId,
-              shop_name: row.shop_name,
+              shop_name: shopName,
               address: row.address || "",
               region: row.region || "",
               lat: Number(row.lat) || 0,
@@ -304,13 +322,15 @@ if (!rows || rows.length === 0) {
       }
     }
 
+    // =========================
+    // 7️⃣ RESPONSE
+    // =========================
     return res.json({
       success: true,
       inserted,
       updated,
       missingSO,
     });
-
   } catch (e) {
     console.error("EXCEL UPLOAD ERROR:", e);
     return res.status(500).json({
