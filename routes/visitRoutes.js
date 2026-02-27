@@ -12,4 +12,9 @@ router.get(
   ctrl.getVisits
 );
 
+router.delete(
+  "/delete",
+  auth(["master", "manager"]),
+  ctrl.deleteVisit
+);
 module.exports = router;

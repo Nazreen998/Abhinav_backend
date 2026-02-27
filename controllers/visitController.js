@@ -1,11 +1,41 @@
 const ddb = require("../config/dynamo");
-const { PutCommand, ScanCommand } = require("@aws-sdk/lib-dynamodb");
+const { PutCommand, ScanCommand, GetCommand, DeleteCommand } = require("@aws-sdk/lib-dynamodb");
 const { v4: uuidv4 } = require("uuid");
-const { GetCommand } = require("@aws-sdk/lib-dynamodb");
-const SHOP_TABLE = "abhinav_shops";
 
+const SHOP_TABLE = "abhinav_shops";
 const TABLE_NAME = "abhinav_visit_history";
 
+// ============================
+// DELETE VISIT (MASTER / MANAGER)
+// ============================
+exports.deleteVisit = async (req, res) => {
+  try {
+    const { pk, sk } = req.body;
+
+    if (!pk || !sk) {
+      return res.status(400).json({
+        success: false,
+        message: "pk & sk required",
+      });
+    }
+
+    await ddb.send(
+      new DeleteCommand({
+        TableName: TABLE_NAME,
+        Key: { pk, sk },
+      })
+    );
+
+    res.json({ success: true, message: "Visit deleted" });
+  } catch (e) {
+    console.error("DELETE VISIT ERROR:", e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+};
+
+// ============================
+// SAVE VISIT (8 DAYS TTL)
+// ============================
 exports.saveVisit = async (req, res) => {
   try {
     const { shop_id, shop_name, result, distance } = req.body;
@@ -27,6 +57,11 @@ exports.saveVisit = async (req, res) => {
 
     const now = new Date().toISOString();
 
+    // 🔥 8 DAYS TTL
+    const days = 8;
+    const expireAt =
+      Math.floor(Date.now() / 1000) + days * 24 * 60 * 60;
+
     const item = {
       pk: `VISIT#USER#${salesmanId}`,
       sk: `SHOP#${shop_id}#${now}`,
@@ -39,7 +74,6 @@ exports.saveVisit = async (req, res) => {
       shop_id,
       shop_name,
 
-      // 🔥 ADD THIS
       companyId: req.user.companyId,
       companyName: req.user.companyName,
 
@@ -50,6 +84,8 @@ exports.saveVisit = async (req, res) => {
       status: "completed",
 
       createdAt: now,
+
+      expireAt, // ✅ TTL field
     };
 
     await ddb.send(
@@ -60,25 +96,22 @@ exports.saveVisit = async (req, res) => {
     );
 
     res.json({ success: true });
-
   } catch (e) {
+    console.error("SAVE VISIT ERROR:", e);
     res.status(500).json({ success: false, error: e.message });
   }
 };
+
+// ============================
+// GET VISITS (COMPANY SAFE)
+// ============================
 exports.getVisits = async (req, res) => {
   try {
-
     const role = req.user.role.toLowerCase();
 
     let filterExpression = "#companyId = :cid";
-
-    let expressionNames = {
-      "#companyId": "companyId",
-    };
-
-    let expressionValues = {
-      ":cid": req.user.companyId,
-    };
+    let expressionNames = { "#companyId": "companyId" };
+    let expressionValues = { ":cid": req.user.companyId };
 
     if (role === "salesman") {
       filterExpression += " AND salesmanId = :uid";
@@ -89,7 +122,7 @@ exports.getVisits = async (req, res) => {
       filterExpression += " AND #segment = :segment";
       expressionNames["#segment"] = "segment";
       expressionValues[":segment"] =
-        req.user.segment.toLowerCase();
+        (req.user.segment || "").toLowerCase();
     }
 
     const result = await ddb.send(
@@ -101,9 +134,12 @@ exports.getVisits = async (req, res) => {
       })
     );
 
-    res.json({ success: true, visits: result.Items || [] });
-
+    res.json({
+      success: true,
+      visits: result.Items || [],
+    });
   } catch (e) {
+    console.error("GET VISITS ERROR:", e);
     res.status(500).json({ success: false, error: e.message });
   }
 };
