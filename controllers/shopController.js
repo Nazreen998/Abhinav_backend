@@ -186,18 +186,21 @@ exports.bulkUploadFromExcel = async (req, res) => {
 
       // 🔎 Check existing shop (shop_name + region match)
       const existingShop = await ddb.send(
-        new ScanCommand({
-          TableName: SHOP_TABLE,
-          FilterExpression:
-            "sk = :profile AND shop_name = :name AND region = :region",
-          ExpressionAttributeValues: {
-            ":profile": "PROFILE",
-            ":name": row.shop_name,
-            ":region": row.region || "",
-          },
-        })
-      );
-
+  new ScanCommand({
+    TableName: SHOP_TABLE,
+    FilterExpression:
+      "sk = :profile AND #companyId = :cid AND shop_name = :name AND region = :region",
+    ExpressionAttributeNames: {
+      "#companyId": "companyId",
+    },
+    ExpressionAttributeValues: {
+      ":profile": "PROFILE",
+      ":cid": req.user.companyId,   // 🔥 VERY IMPORTANT
+      ":name": row.shop_name,
+      ":region": row.region || "",
+    },
+  })
+);
       if (existingShop.Items.length > 0) {
         // =====================
         // ✅ UPDATE EXISTING
@@ -244,13 +247,15 @@ exports.bulkUploadFromExcel = async (req, res) => {
               region: row.region || "",
               lat: Number(row.lat) || 0,
               lng: Number(row.lng) || 0,
-              segment: row.segment || "",
+              ":segment": (row.segment || "").toLowerCase(),
               status: "approved",
               isDeleted: false,
               shopImage: row.shopImage || "",
               createdByUserId: soId,
               createdByUserName:
                 soUser.username || soUser.name || row.so_username,
+                 companyId: req.user.companyId,
+                 companyName: req.user.companyName,
               createdAt: new Date().toISOString(),
             },
           })
