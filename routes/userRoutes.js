@@ -8,6 +8,9 @@ router.post("/register-master", userController.registerMaster);
 // LOGIN
 router.post("/login", userController.login);
 
+//List
+router.get("/list", auth(["MASTER"]), userController.listUsers);
+
 // ADD USER (MASTER only)
 router.post("/add", auth(["MASTER"]), userController.addUser);
 

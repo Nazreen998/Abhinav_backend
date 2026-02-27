@@ -19,19 +19,38 @@ const USER_TABLE = "abhinav_users";
 exports.listShops = async (req, res) => {
   try {
     let filterExpression =
-      "sk = :profile AND (attribute_not_exists(isDeleted) OR isDeleted = :false)";
+      "sk = :profile AND #companyId = :cid AND (attribute_not_exists(isDeleted) OR isDeleted = :false)";
 
     let expressionValues = {
       ":profile": "PROFILE",
       ":false": false,
+      ":cid": req.user.companyId,
     };
 
-    let expressionNames = {};
+    let expressionNames = {
+      "#companyId": "companyId",
+    };
 
-    if (req.user.role === "salesman") {
+    const role = req.user.role.toLowerCase();
+
+    // 👷 SALESMAN → only own shops
+    if (role === "salesman") {
       filterExpression += " AND createdByUserId = :uid";
       expressionValues[":uid"] = req.user.id;
-    } else {
+    }
+
+    // 🧑‍💼 MANAGER → segment wise
+    else if (role === "manager") {
+      filterExpression += " AND #segment = :segment AND #status = :approved";
+      expressionValues[":segment"] = req.user.segment;
+      expressionValues[":approved"] = "approved";
+
+      expressionNames["#segment"] = "segment";
+      expressionNames["#status"] = "status";
+    }
+
+    // 👑 MASTER → all company shops
+    else if (role === "master") {
       filterExpression += " AND #status = :approved";
       expressionValues[":approved"] = "approved";
       expressionNames["#status"] = "status";
@@ -48,8 +67,7 @@ exports.listShops = async (req, res) => {
         TableName: SHOP_TABLE,
         FilterExpression: filterExpression,
         ExpressionAttributeValues: expressionValues,
-        ExpressionAttributeNames:
-          Object.keys(expressionNames).length ? expressionNames : undefined,
+        ExpressionAttributeNames: expressionNames,
       })
     );
 
@@ -58,12 +76,12 @@ exports.listShops = async (req, res) => {
     );
 
     res.json({ success: true, shops });
+
   } catch (err) {
     console.error("LIST SHOP ERROR:", err);
     res.status(500).json({ success: false, message: "Failed to fetch shops" });
   }
 };
-
 // ==============================
 // ADD SHOP
 // ==============================

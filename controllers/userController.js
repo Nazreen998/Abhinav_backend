@@ -288,3 +288,48 @@ exports.deleteUser = async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 };
+//=========list user ===========//
+exports.listUsers = async (req, res) => {
+  try {
+
+    const role = req.user.role.toLowerCase();
+
+    let params = {
+      TableName: "abhinav_users",
+      FilterExpression: "#companyId = :cid",
+      ExpressionAttributeNames: {
+        "#companyId": "companyId",
+      },
+      ExpressionAttributeValues: {
+        ":cid": req.user.companyId,
+      },
+    };
+
+    // Manager → segment filter
+    if (role === "manager") {
+      params.FilterExpression += " AND #segment = :segment";
+      params.ExpressionAttributeNames["#segment"] = "segment";
+      params.ExpressionAttributeValues[":segment"] =
+        req.user.segment;
+    }
+
+    // Salesman → not allowed
+    if (role === "salesman") {
+      return res.status(403).json({
+        success: false,
+        message: "Not allowed",
+      });
+    }
+
+    const result = await ddb.send(new ScanCommand(params));
+
+    res.json({
+      success: true,
+      users: result.Items || [],
+    });
+
+  } catch (err) {
+    console.error("LIST USERS ERROR:", err);
+    res.status(500).json({ success: false });
+  }
+};
