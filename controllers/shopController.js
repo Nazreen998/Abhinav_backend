@@ -247,7 +247,7 @@ exports.bulkUploadFromExcel = async (req, res) => {
               region: row.region || "",
               lat: Number(row.lat) || 0,
               lng: Number(row.lng) || 0,
-              ":segment": (row.segment || "").toLowerCase(),
+              segment: (row.segment || "").toLowerCase(),
               status: "approved",
               isDeleted: false,
               shopImage: row.shopImage || "",
