@@ -143,9 +143,41 @@ exports.bulkUploadFromExcel = async (req, res) => {
       });
     }
 
-    const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
-    const sheetName = workbook.SheetNames[0];
-    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+    if (!req.file || !req.file.buffer) {
+  return res.status(400).json({
+    success: false,
+    message: "File upload failed or buffer missing",
+  });
+}
+
+const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+
+if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+  return res.status(400).json({
+    success: false,
+    message: "Excel has no sheets",
+  });
+}
+
+const sheetName = workbook.SheetNames[0];
+
+const sheet = workbook.Sheets[sheetName];
+
+if (!sheet) {
+  return res.status(400).json({
+    success: false,
+    message: "Sheet not readable",
+  });
+}
+
+const rows = XLSX.utils.sheet_to_json(sheet);
+
+if (!rows || rows.length === 0) {
+  return res.status(400).json({
+    success: false,
+    message: "Excel empty",
+  });
+}
 
     if (!rows || rows.length === 0) {
       return res.status(400).json({

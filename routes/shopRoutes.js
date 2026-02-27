@@ -5,9 +5,9 @@ const uploadShopImage = require("../middleware/uploadShopImage");
 const multer = require("multer");
 
 const upload = multer({
-  dest: "uploads/",
+  storage: multer.memoryStorage(),
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB
+    fileSize: 10 * 1024 * 1024,
   },
 });
 // ==============================
