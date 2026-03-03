@@ -90,4 +90,5 @@ router.get(
   auth(["master", "manager", "salesman"]),
   shopController.getOwnerCallDuration
 );
+
 module.exports = router;

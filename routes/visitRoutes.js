@@ -17,4 +17,10 @@ router.delete(
   auth(["master", "manager"]),
   ctrl.deleteVisit
 );
+
+router.get(
+  "/history",
+  auth(["master", "manager", "salesman"]),
+  ctrl.getCallHistory
+);
 module.exports = router;

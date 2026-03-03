@@ -13,6 +13,7 @@ const { v4: uuidv4 } = require("uuid");
 
 const SHOP_TABLE = "abhinav_shops";
 const USER_TABLE = "abhinav_users";
+const VISIT_HISTORY_TABLE = "abhinav_visit_history";
 
 // ==============================
 // LIST SHOPS (Role Based + Search)
@@ -159,34 +160,62 @@ exports.addCallLog = async (req, res) => {
     const { shopId } = req.params;
     const { fromNumber, durationSec } = req.body;
 
-    if (!fromNumber || !durationSec) {
+    if (!fromNumber || durationSec === undefined) {
       return res.status(400).json({
         success: false,
-        message: "fromNumber and durationSec required"
+        message: "fromNumber and durationSec required",
       });
     }
 
-    const timestamp = new Date().toISOString();
-
-    const callItem = {
-      pk: `SHOP#${shopId}`,
-      sk: `CALL#${timestamp}`,
-
-      shop_id: shopId,
-      fromNumber,
-      durationSec: Number(durationSec),
-      createdAt: timestamp,
-    };
-
-    await ddb.send(
-      new PutCommand({
+    // 1) get shop profile (for shopName, segment, companyId, primaryPhone)
+    const shopData = await ddb.send(
+      new GetCommand({
         TableName: SHOP_TABLE,
-        Item: callItem,
+        Key: { pk: `SHOP#${shopId}`, sk: "PROFILE" },
       })
     );
 
-    res.json({ success: true, message: "Call log added" });
+    if (!shopData.Item) {
+      return res.status(404).json({ success: false, message: "Shop not found" });
+    }
 
+    const shop = shopData.Item;
+
+    const timestamp = new Date().toISOString();
+
+    // 2) build history item
+    const historyItem = {
+      pk: `USER#${req.user.id}`,          // Salesman-wise history fast
+      sk: `CALL#${timestamp}`,            // sort by time
+
+      history_id: uuidv4(),
+
+      shop_id: shopId,
+      shop_name: shop.shop_name,
+      segment: shop.segment || "",
+      companyId: shop.companyId,
+      companyName: shop.companyName,
+
+      ownerPhone: shop.primaryPhone || "", // shop owner number
+      fromNumber,                           // caller
+      durationSec: Number(durationSec),
+
+      createdByUserId: req.user.id,
+      createdByUserName: req.user.name,
+      role: req.user.role,
+
+      createdAt: timestamp,
+    };
+
+    // 3) save to visit history table
+    await ddb.send(
+      new PutCommand({
+        TableName: VISIT_HISTORY_TABLE,
+        Item: historyItem,
+      })
+    );
+
+    res.json({ success: true, message: "Call log saved in visit history" });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
