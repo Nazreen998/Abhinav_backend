@@ -210,7 +210,7 @@ exports.addCallLog = async (req, res) => {
     // 3) save to visit history table
     await ddb.send(
       new PutCommand({
-        TableName: VISIT_HISTORY_TABLE,
+        TableName: "abhinav_visit_history",
         Item: historyItem,
       })
     );
