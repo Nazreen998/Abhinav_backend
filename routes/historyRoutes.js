@@ -10,6 +10,6 @@ router.get("/list", auth(["master", "manager", "salesman"]), historyController.g
 router.get(
   "/reports/dashboard",
   auth(["master", "manager"]),
-  ctrl.getDashboardReport
+  historyController.getDashboardReport
 );
 module.exports = router;
