@@ -197,39 +197,35 @@ exports.getOwnerCallDuration = async (req, res) => {
   try {
     const { shopId } = req.params;
 
-    // 1️⃣ Get shop profile
-    const shopData = await ddb.send(
-      new GetCommand({
+    const data = await ddb.send(
+      new QueryCommand({
         TableName: SHOP_TABLE,
-        Key: {
-          pk: `SHOP#${shopId}`,
-          sk: "PROFILE",
+        KeyConditionExpression: "pk = :pk",
+        ExpressionAttributeValues: {
+          ":pk": `SHOP#${shopId}`,
         },
       })
     );
 
-    if (!shopData.Item) {
+    const items = data.Items || [];
+
+    if (items.length === 0) {
       return res.status(404).json({
         success: false,
         message: "Shop not found",
       });
     }
 
-    const ownerPhone = shopData.Item.primaryPhone;
+    const profile = items.find(item => item.sk === "PROFILE");
 
-    // 2️⃣ Get all calls for this shop
-    const callData = await ddb.send(
-      new QueryCommand({
-        TableName: SHOP_TABLE,
-        KeyConditionExpression: "pk = :pk AND begins_with(sk, :sk)",
-        ExpressionAttributeValues: {
-          ":pk": `SHOP#${shopId}`,
-          ":sk": "CALL#",
-        },
-      })
-    );
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: "Shop profile missing",
+      });
+    }
 
-    const calls = callData.Items || [];
+    const calls = items.filter(item => item.sk.startsWith("CALL#"));
 
     const totalDuration = calls.reduce((sum, call) => {
       return sum + (call.durationSec || 0);
@@ -237,7 +233,7 @@ exports.getOwnerCallDuration = async (req, res) => {
 
     res.json({
       success: true,
-      ownerPhone,
+      ownerPhone: profile.primaryPhone,
       callCount: calls.length,
       totalDurationSec: totalDuration,
       totalMinutes: (totalDuration / 60).toFixed(2),
