@@ -64,14 +64,18 @@ exports.getDashboardReport = async (req, res) => {
 
     let visits = result.Items || [];
 
-    // convert to ISO date only (ignore timezone time part)
     visits = visits.filter((v) => {
-      const visitDate = new Date(v.createdAt)
-        .toISOString()
-        .split("T")[0]; // YYYY-MM-DD
+    const dt = new Date(v.createdAt);
 
-      return visitDate >= startDate && visitDate <= endDate;
-    });
+    const visitDate =
+      dt.getFullYear() +
+      "-" +
+      String(dt.getMonth() + 1).padStart(2, "0") +
+      "-" +
+      String(dt.getDate()).padStart(2, "0");
+
+    return visitDate >= startDate && visitDate <= endDate;
+  });
 
     const totalVisits = visits.length;
     const totalMatch = visits.filter(v => v.result === "match").length;
