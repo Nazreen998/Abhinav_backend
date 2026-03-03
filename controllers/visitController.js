@@ -156,25 +156,37 @@ exports.saveVisit = async (req, res) => {
 // ============================
 // GET VISITS (COMPANY SAFE)
 // ============================
+// ============================
+// GET VISITS (COMPANY SAFE)
+// ============================
 exports.getVisits = async (req, res) => {
   try {
-    const role = req.user.role.toLowerCase();
+    const role = (req.user.role || "").toLowerCase();
 
-    let filterExpression ="#companyId = :cid AND (attribute_not_exists(isDeleted) OR isDeleted = :false)";
-    expressionValues[":false"] = false;
-    let expressionNames = { "#companyId": "companyId" };
-    let expressionValues = { ":cid": req.user.companyId };
+    let filterExpression =
+      "#companyId = :cid AND (attribute_not_exists(isDeleted) OR isDeleted = :false)";
 
+    let expressionNames = {
+      "#companyId": "companyId",
+    };
+
+    let expressionValues = {
+      ":cid": req.user.companyId,
+      ":false": false,
+    };
+
+    // 🔹 Salesman → only own visits
     if (role === "salesman") {
       filterExpression += " AND salesmanId = :uid";
       expressionValues[":uid"] = req.user.id;
     }
 
+    // 🔹 Manager → segment wise
     if (role === "manager") {
       filterExpression += " AND #segment = :segment";
       expressionNames["#segment"] = "segment";
       expressionValues[":segment"] =
-        (req.user.segment || "").toLowerCase();
+        (req.user.segment || "").toLowerCase().trim();
     }
 
     const result = await ddb.send(
@@ -190,8 +202,12 @@ exports.getVisits = async (req, res) => {
       success: true,
       visits: result.Items || [],
     });
+
   } catch (e) {
     console.error("GET VISITS ERROR:", e);
-    res.status(500).json({ success: false, error: e.message });
+    res.status(500).json({
+      success: false,
+      error: e.message,
+    });
   }
 };
