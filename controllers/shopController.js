@@ -203,7 +203,8 @@ exports.addCallLog = async (req, res) => {
       durationSec: Number(durationSec),
 
       createdByUserId: req.user.id,
-      createdByUserName: req.user.name,
+      salesmanId: req.user.id,
+      salesmanName: req.user.name,
       role: req.user.role,
 
       createdAt: timestamp,
