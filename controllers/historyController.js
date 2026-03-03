@@ -56,22 +56,30 @@ exports.getDashboardReport = async (req, res) => {
       });
     }
 
-    // 🔥 Convert query dates to real Date objects (local safe)
+    // 🔥 Get companyId from logged in user
+    const companyId = req.user.companyId;
+
+    // 🔥 Convert query dates to real Date objects
     const start = new Date(startDate);
     const end = new Date(endDate);
 
-    // Include full end day (23:59:59)
+    // Include full end day
     end.setHours(23, 59, 59, 999);
 
     const result = await ddb.send(
       new ScanCommand({
         TableName: TABLE_NAME,
+        FilterExpression: "companyId = :cid AND (attribute_not_exists(isDeleted) OR isDeleted <> :true)",
+        ExpressionAttributeValues: {
+          ":cid": companyId,
+          ":true": true,
+        },
       })
     );
 
     let visits = result.Items || [];
 
-    // 🔥 Filter using REAL Date comparison (no string compare)
+    // 🔥 Date filter (unchanged logic)
     visits = visits.filter((v) => {
       if (!v.createdAt) return false;
 
@@ -85,7 +93,7 @@ exports.getDashboardReport = async (req, res) => {
     const totalMatch = visits.filter(v => v.result === "match").length;
     const totalMismatch = visits.filter(v => v.result !== "match").length;
 
-    // 🔥 Salesman Breakdown
+    // 🔥 Salesman Breakdown (unchanged)
     const salesmanMap = {};
 
     visits.forEach(v => {
