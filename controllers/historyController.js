@@ -56,6 +56,13 @@ exports.getDashboardReport = async (req, res) => {
       });
     }
 
+    // 🔥 Convert query dates to real Date objects (local safe)
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    // Include full end day (23:59:59)
+    end.setHours(23, 59, 59, 999);
+
     const result = await ddb.send(
       new ScanCommand({
         TableName: TABLE_NAME,
@@ -64,19 +71,16 @@ exports.getDashboardReport = async (req, res) => {
 
     let visits = result.Items || [];
 
+    // 🔥 Filter using REAL Date comparison (no string compare)
     visits = visits.filter((v) => {
-    const dt = new Date(v.createdAt);
+      if (!v.createdAt) return false;
 
-    const visitDate =
-      dt.getFullYear() +
-      "-" +
-      String(dt.getMonth() + 1).padStart(2, "0") +
-      "-" +
-      String(dt.getDate()).padStart(2, "0");
+      const visitDate = new Date(v.createdAt);
 
-    return visitDate >= startDate && visitDate <= endDate;
-  });
+      return visitDate >= start && visitDate <= end;
+    });
 
+    // 🔥 Totals
     const totalVisits = visits.length;
     const totalMatch = visits.filter(v => v.result === "match").length;
     const totalMismatch = visits.filter(v => v.result !== "match").length;
