@@ -1,10 +1,40 @@
 const ddb = require("../config/dynamo");
 const { PutCommand, ScanCommand, GetCommand, UpdateCommand } = require("@aws-sdk/lib-dynamodb");
+const { QueryCommand } = require("@aws-sdk/lib-dynamodb");
 const { v4: uuidv4 } = require("uuid");
 
 const SHOP_TABLE = "abhinav_shops";
 const TABLE_NAME = "abhinav_visit_history";
+const VISIT_HISTORY_TABLE = "abhinav_visit_history";
 
+exports.getCallHistory = async (req, res) => {
+  try {
+    // salesman -> own history
+    if (req.user.role === "salesman") {
+      const data = await ddb.send(
+        new QueryCommand({
+          TableName: VISIT_HISTORY_TABLE,
+          KeyConditionExpression: "pk = :pk AND begins_with(sk, :sk)",
+          ExpressionAttributeValues: {
+            ":pk": `USER#${req.user.id}`,
+            ":sk": "CALL#",
+          },
+          ScanIndexForward: false, // latest first
+        })
+      );
+
+      return res.json({ success: true, logs: data.Items || [] });
+    }
+
+    // manager/master: for now return error until we add GSI (next step)
+    return res.status(400).json({
+      success: false,
+      message: "Manager/Master history needs GSI (segment/company) - next step implement pannalam",
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
 // ============================
 // SOFT DELETE VISIT (MASTER / MANAGER)
 // ============================
