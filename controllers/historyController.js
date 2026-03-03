@@ -44,3 +44,45 @@ exports.getHistory = async (req, res) => {
     });
   }
 };
+// ================= DASHBOARD REPORT =================
+exports.getDashboardReport = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        message: "startDate & endDate required",
+      });
+    }
+
+    const result = await ddb.send(
+      new ScanCommand({
+        TableName: TABLE_NAME,
+        FilterExpression:
+          "createdAt BETWEEN :start AND :end AND isDeleted <> :true",
+        ExpressionAttributeValues: {
+          ":start": startDate,
+          ":end": endDate,
+          ":true": true,
+        },
+      })
+    );
+
+    const visits = result.Items || [];
+
+    const totalVisits = visits.length;
+    const totalMatch = visits.filter(v => v.result === "match").length;
+    const totalMismatch = visits.filter(v => v.result !== "match").length;
+
+    return res.json({
+      success: true,
+      totalVisits,
+      totalMatch,
+      totalMismatch,
+    });
+  } catch (error) {
+    console.error("DASHBOARD ERROR:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
