@@ -97,7 +97,8 @@ exports.addShop = async (req, res) => {
       segment,
       shopImage,
       primaryPhone,
-      secondaryPhone
+      secondaryPhone,
+      shopType,
     } = req.body;
 
     if (!primaryPhone) {
@@ -122,8 +123,9 @@ exports.addShop = async (req, res) => {
       segment: (segment || "").toLowerCase(),
 
       // 🔥 ADD PHONES HERE
-      primaryPhone,
-      secondaryPhone: secondaryPhone || "",
+     primaryPhone: primaryPhone || "",
+    secondaryPhone: secondaryPhone || "",
+    shopType: shopType || "office",
 
       status: "pending",
       isDeleted: false,
@@ -210,7 +212,7 @@ exports.addCallLog = async (req, res) => {
     // 3) save to visit history table
     await ddb.send(
       new PutCommand({
-        TableName: VISIT_HISTORY_TABLE,
+        TableName: "abhinav_visit_history",
         Item: historyItem,
       })
     );
