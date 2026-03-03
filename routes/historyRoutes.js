@@ -6,4 +6,10 @@ const auth = require("../middleware/auth");
 // Salesman → see own history only
 router.get("/list", auth(["master", "manager", "salesman"]), historyController.getHistory);
 
+// Master & Manager
+router.get(
+  "/reports/dashboard",
+  auth(["master", "manager"]),
+  ctrl.getDashboardReport
+);
 module.exports = router;
