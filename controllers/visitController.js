@@ -1,16 +1,17 @@
 const ddb = require("../config/dynamo");
-const { PutCommand, ScanCommand, GetCommand, DeleteCommand } = require("@aws-sdk/lib-dynamodb");
+const { PutCommand, ScanCommand, GetCommand, UpdateCommand } = require("@aws-sdk/lib-dynamodb");
 const { v4: uuidv4 } = require("uuid");
 
 const SHOP_TABLE = "abhinav_shops";
 const TABLE_NAME = "abhinav_visit_history";
 
 // ============================
-// DELETE VISIT (MASTER / MANAGER)
+// SOFT DELETE VISIT (MASTER / MANAGER)
 // ============================
 exports.deleteVisit = async (req, res) => {
   try {
     const { pk, sk } = req.body;
+
     if (!pk || !sk) {
       return res.status(400).json({
         success: false,
@@ -18,7 +19,7 @@ exports.deleteVisit = async (req, res) => {
       });
     }
 
-    // ✅ read the visit first (to enforce company/segment rules)
+    // 🔎 Check visit exists
     const visitRes = await ddb.send(
       new GetCommand({
         TableName: TABLE_NAME,
@@ -35,7 +36,7 @@ exports.deleteVisit = async (req, res) => {
       });
     }
 
-    // ✅ company isolation
+    // 🔒 Company isolation
     if (visit.companyId !== req.user.companyId) {
       return res.status(403).json({
         success: false,
@@ -45,7 +46,7 @@ exports.deleteVisit = async (req, res) => {
 
     const role = (req.user.role || "").toLowerCase();
 
-    // ✅ manager can delete only same segment
+    // 🔒 Manager segment restriction
     if (role === "manager") {
       const userSeg = (req.user.segment || "").toLowerCase().trim();
       const visitSeg = (visit.segment || "").toLowerCase().trim();
@@ -58,16 +59,28 @@ exports.deleteVisit = async (req, res) => {
       }
     }
 
+    // ✅ SOFT DELETE (hide only)
     await ddb.send(
-      new DeleteCommand({
+      new UpdateCommand({
         TableName: TABLE_NAME,
         Key: { pk, sk },
+        UpdateExpression:
+          "SET isDeleted = :true, deletedAt = :time, deletedBy = :user",
+        ExpressionAttributeValues: {
+          ":true": true,
+          ":time": new Date().toISOString(),
+          ":user": req.user.name,
+        },
       })
     );
 
-    res.json({ success: true, message: "Visit deleted" });
+    res.json({
+      success: true,
+      message: "Visit hidden successfully",
+    });
+
   } catch (e) {
-    console.error("DELETE VISIT ERROR:", e);
+    console.error("SOFT DELETE ERROR:", e);
     res.status(500).json({ success: false, error: e.message });
   }
 };
@@ -147,7 +160,8 @@ exports.getVisits = async (req, res) => {
   try {
     const role = req.user.role.toLowerCase();
 
-    let filterExpression = "#companyId = :cid";
+    let filterExpression ="#companyId = :cid AND (attribute_not_exists(isDeleted) OR isDeleted = :false)";
+    expressionValues[":false"] = false;
     let expressionNames = { "#companyId": "companyId" };
     let expressionValues = { ":cid": req.user.companyId };
 
