@@ -3,6 +3,7 @@ const {
   ScanCommand,
   PutCommand,
   UpdateCommand,
+  QueryCommand,
   GetCommand,
 } = require("@aws-sdk/lib-dynamodb");
 
