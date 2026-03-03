@@ -73,4 +73,21 @@ router.put(
   auth(["salesman"]), // 🔥 only salesman
   shopController.updateShopImage
 );
+// ==============================
+// ADD CALL LOG (TEST PURPOSE)
+// ==============================
+router.post(
+  "/:shopId/add-call",
+  auth(["salesman", "manager"]),
+  shopController.addCallLog
+);
+
+// ==============================
+// GET OWNER CALL DURATION
+// ==============================
+router.get(
+  "/:shopId/owner-call-duration",
+  auth(["master", "manager", "salesman"]),
+  shopController.getOwnerCallDuration
+);
 module.exports = router;

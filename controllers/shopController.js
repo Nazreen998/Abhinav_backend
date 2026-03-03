@@ -87,7 +87,23 @@ exports.listShops = async (req, res) => {
 // ==============================
 exports.addShop = async (req, res) => {
   try {
-    const { shop_name, address, lat, lng, segment, shopImage } = req.body;
+    const {
+      shop_name,
+      address,
+      lat,
+      lng,
+      segment,
+      shopImage,
+      primaryPhone,
+      secondaryPhone
+    } = req.body;
+
+    if (!primaryPhone) {
+      return res.status(400).json({
+        success: false,
+        message: "Primary phone number is required"
+      });
+    }
 
     const shopId = uuidv4();
 
@@ -103,10 +119,13 @@ exports.addShop = async (req, res) => {
 
       segment: (segment || "").toLowerCase(),
 
+      // 🔥 ADD PHONES HERE
+      primaryPhone,
+      secondaryPhone: secondaryPhone || "",
+
       status: "pending",
       isDeleted: false,
 
-      // 🔥 ADD THIS (CRITICAL)
       companyId: req.user.companyId,
       companyName: req.user.companyName,
 
@@ -129,6 +148,103 @@ exports.addShop = async (req, res) => {
 
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
+  }
+};
+//==============================
+//ADD CALL LOGS 
+//==============================
+exports.addCallLog = async (req, res) => {
+  try {
+    const { shopId } = req.params;
+    const { fromNumber, durationSec } = req.body;
+
+    if (!fromNumber || !durationSec) {
+      return res.status(400).json({
+        success: false,
+        message: "fromNumber and durationSec required"
+      });
+    }
+
+    const timestamp = new Date().toISOString();
+
+    const callItem = {
+      pk: `SHOP#${shopId}`,
+      sk: `CALL#${timestamp}`,
+
+      shop_id: shopId,
+      fromNumber,
+      durationSec: Number(durationSec),
+      createdAt: timestamp,
+    };
+
+    await ddb.send(
+      new PutCommand({
+        TableName: SHOP_TABLE,
+        Item: callItem,
+      })
+    );
+
+    res.json({ success: true, message: "Call log added" });
+
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+//==============================
+//GET OWNER CALL DURATION
+//==============================
+exports.getOwnerCallDuration = async (req, res) => {
+  try {
+    const { shopId } = req.params;
+
+    // 1️⃣ Get shop profile
+    const shopData = await ddb.send(
+      new GetCommand({
+        TableName: SHOP_TABLE,
+        Key: {
+          pk: `SHOP#${shopId}`,
+          sk: "PROFILE",
+        },
+      })
+    );
+
+    if (!shopData.Item) {
+      return res.status(404).json({
+        success: false,
+        message: "Shop not found",
+      });
+    }
+
+    const ownerPhone = shopData.Item.primaryPhone;
+
+    // 2️⃣ Get all calls for this shop
+    const callData = await ddb.send(
+      new QueryCommand({
+        TableName: SHOP_TABLE,
+        KeyConditionExpression: "pk = :pk AND begins_with(sk, :sk)",
+        ExpressionAttributeValues: {
+          ":pk": `SHOP#${shopId}`,
+          ":sk": "CALL#",
+        },
+      })
+    );
+
+    const calls = callData.Items || [];
+
+    const totalDuration = calls.reduce((sum, call) => {
+      return sum + (call.durationSec || 0);
+    }, 0);
+
+    res.json({
+      success: true,
+      ownerPhone,
+      callCount: calls.length,
+      totalDurationSec: totalDuration,
+      totalMinutes: (totalDuration / 60).toFixed(2),
+    });
+
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 };
 // ==============================
