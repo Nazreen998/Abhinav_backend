@@ -97,7 +97,7 @@ exports.getDashboardReport = async (req, res) => {
     const salesmanMap = {};
 
     visits.forEach(v => {
-      const name = v.salesmanName || "Unknown";
+      const name = v.salesmanName || v.createdByUserName || v.createdBy || "Unknown";
 
       if (!salesmanMap[name]) {
         salesmanMap[name] = {
