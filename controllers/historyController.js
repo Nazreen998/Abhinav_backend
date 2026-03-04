@@ -56,20 +56,17 @@ exports.getDashboardReport = async (req, res) => {
       });
     }
 
-    // 🔥 Get companyId from logged in user
     const companyId = req.user.companyId;
 
-    // 🔥 Convert query dates to real Date objects
     const start = new Date(startDate);
     const end = new Date(endDate);
-
-    // Include full end day
     end.setHours(23, 59, 59, 999);
 
     const result = await ddb.send(
       new ScanCommand({
         TableName: TABLE_NAME,
-        FilterExpression: "companyId = :cid AND (attribute_not_exists(isDeleted) OR isDeleted <> :true)",
+        FilterExpression:
+          "companyId = :cid AND (attribute_not_exists(isDeleted) OR isDeleted <> :true)",
         ExpressionAttributeValues: {
           ":cid": companyId,
           ":true": true,
@@ -79,41 +76,65 @@ exports.getDashboardReport = async (req, res) => {
 
     let visits = result.Items || [];
 
-    // 🔥 Date filter (unchanged logic)
     visits = visits.filter((v) => {
       if (!v.createdAt) return false;
-
       const visitDate = new Date(v.createdAt);
-
       return visitDate >= start && visitDate <= end;
     });
 
     // 🔥 Totals
-    const totalVisits = visits.length;
-    const totalMatch = visits.filter(v => v.result === "match").length;
-    const totalMismatch = visits.filter(v => v.result !== "match").length;
+    let totalVisits = 0;
+    let totalCalls = 0;
+    let totalMatch = 0;
+    let totalMismatch = 0;
+    let totalCallDuration = 0;
 
-    // 🔥 Salesman Breakdown (unchanged)
     const salesmanMap = {};
 
-    visits.forEach(v => {
-      const name = v.salesmanName || v.createdByUserName || v.createdBy || "Unknown";
+    visits.forEach((v) => {
+      const name =
+        v.salesmanName ||
+        v.createdByUserName ||
+        v.createdBy ||
+        "Unknown";
+
+      const isCall = v.sk?.startsWith("CALL#");
 
       if (!salesmanMap[name]) {
         salesmanMap[name] = {
           name,
           visits: 0,
+          calls: 0,
           match: 0,
           mismatch: 0,
+          callDuration: 0,
         };
       }
 
-      salesmanMap[name].visits += 1;
+      if (isCall) {
+        // 🔵 CALL RECORD
+        totalCalls += 1;
 
-      if (v.result === "match") {
-        salesmanMap[name].match += 1;
+        const duration = Number(v.durationSec || 0);
+
+        totalCallDuration += duration;
+
+        salesmanMap[name].calls += 1;
+        salesmanMap[name].callDuration += duration;
+
       } else {
-        salesmanMap[name].mismatch += 1;
+        // 🟢 VISIT RECORD
+        totalVisits += 1;
+
+        salesmanMap[name].visits += 1;
+
+        if (v.result === "match") {
+          totalMatch += 1;
+          salesmanMap[name].match += 1;
+        } else {
+          totalMismatch += 1;
+          salesmanMap[name].mismatch += 1;
+        }
       }
     });
 
@@ -122,6 +143,8 @@ exports.getDashboardReport = async (req, res) => {
     res.json({
       success: true,
       totalVisits,
+      totalCalls,
+      totalCallDuration,
       totalMatch,
       totalMismatch,
       salesmanPerformance,
