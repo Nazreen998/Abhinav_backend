@@ -91,4 +91,12 @@ router.get(
   shopController.getOwnerCallDuration
 );
 
+// ==============================
+// ADD CALL LOG BY PHONE
+// ==============================
+router.post(
+  "/calls",
+  auth(["salesman", "manager"]),
+  shopController.addCallLogByPhone
+);
 module.exports = router;

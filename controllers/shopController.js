@@ -277,6 +277,86 @@ exports.getOwnerCallDuration = async (req, res) => {
   }
 };
 // ==============================
+// ADD CALL LOG USING PHONE
+// ==============================
+exports.addCallLogByPhone = async (req, res) => {
+  try {
+    const { phone, durationSec } = req.body;
+
+    if (!phone || durationSec === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: "phone and durationSec required",
+      });
+    }
+
+    // 🔍 Find shop using phone
+    const shopResult = await ddb.send(
+      new ScanCommand({
+        TableName: SHOP_TABLE,
+        FilterExpression:
+          "primaryPhone = :phone OR secondaryPhone = :phone",
+        ExpressionAttributeValues: {
+          ":phone": phone,
+        },
+      })
+    );
+
+    if (!shopResult.Items || shopResult.Items.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No shop found for this phone number",
+      });
+    }
+
+    const shop = shopResult.Items[0];
+
+    const timestamp = new Date().toISOString();
+
+    const historyItem = {
+      pk: `USER#${req.user?.id || "SYSTEM"}`,
+      sk: `CALL#${timestamp}`,
+
+      history_id: uuidv4(),
+
+      shop_id: shop.shop_id,
+      shop_name: shop.shop_name,
+      segment: shop.segment || "",
+      companyId: shop.companyId,
+      companyName: shop.companyName,
+
+      ownerPhone: shop.primaryPhone || "",
+      fromNumber: phone,
+      durationSec: Number(durationSec),
+
+      salesmanId: req.user?.id || "SYSTEM",
+      salesmanName: req.user?.name || "SYSTEM",
+      role: req.user?.role || "SYSTEM",
+
+      createdAt: timestamp,
+    };
+
+    await ddb.send(
+      new PutCommand({
+        TableName: VISIT_HISTORY_TABLE,
+        Item: historyItem,
+      })
+    );
+
+    res.json({
+      success: true,
+      message: "Call log saved using phone match",
+    });
+
+  } catch (err) {
+    console.error("CALL LOG PHONE API ERROR:", err);
+    res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+  }
+};
+// ==============================
 // BULK UPLOAD FROM EXCEL (SMART UPSERT + IMAGE)
 // ==============================
 exports.bulkUploadFromExcel = async (req, res) => {
