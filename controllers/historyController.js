@@ -91,53 +91,66 @@ exports.getDashboardReport = async (req, res) => {
 
     const salesmanMap = {};
 
-    visits.forEach((v) => {
-      const name =
-        v.salesmanName ||
-        v.createdByUserName ||
-        v.createdBy ||
-        "Unknown";
+  visits.forEach((v) => {
 
-      const isCall = v.sk?.startsWith("CALL#");
+  const name =
+    v.salesmanName ||
+    v.createdByUserName ||
+    v.createdBy ||
+    "Unknown";
 
-      if (!salesmanMap[name]) {
-        salesmanMap[name] = {
-          name,
-          visits: 0,
-          calls: 0,
-          match: 0,
-          mismatch: 0,
-          callDuration: 0,
-        };
-      }
+  const visitDate = new Date(v.createdAt);
 
-      if (isCall) {
-        // 🔵 CALL RECORD
-        totalCalls += 1;
+  if (!salesmanMap[name]) {
+    salesmanMap[name] = {
+      name,
+      visits: 0,
+      calls: 0,
+      match: 0,
+      mismatch: 0,
+      callDuration: 0,
+      inTime: null,
+      outTime: null
+    };
+  }
 
-        const duration = Number(v.durationSec || 0);
+  // intime
+  if (!salesmanMap[name].inTime || visitDate < new Date(salesmanMap[name].inTime)) {
+    salesmanMap[name].inTime = visitDate;
+  }
 
-        totalCallDuration += duration;
+  // outtime
+  if (!salesmanMap[name].outTime || visitDate > new Date(salesmanMap[name].outTime)) {
+    salesmanMap[name].outTime = visitDate;
+  }
 
-        salesmanMap[name].calls += 1;
-        salesmanMap[name].callDuration += duration;
+  const isCall = v.sk?.startsWith("CALL#");
 
-      } else {
-        // 🟢 VISIT RECORD
-        totalVisits += 1;
+  if (isCall) {
+    totalCalls += 1;
 
-        salesmanMap[name].visits += 1;
+    const duration = Number(v.durationSec || 0);
 
-        if (v.result === "match") {
-          totalMatch += 1;
-          salesmanMap[name].match += 1;
-        } else {
-          totalMismatch += 1;
-          salesmanMap[name].mismatch += 1;
-        }
-      }
-    });
+    totalCallDuration += duration;
 
+    salesmanMap[name].calls += 1;
+    salesmanMap[name].callDuration += duration;
+
+  } else {
+    totalVisits += 1;
+
+    salesmanMap[name].visits += 1;
+
+    if (v.result === "match") {
+      totalMatch += 1;
+      salesmanMap[name].match += 1;
+    } else {
+      totalMismatch += 1;
+      salesmanMap[name].mismatch += 1;
+    }
+  }
+
+});
     const salesmanPerformance = Object.values(salesmanMap);
 
     res.json({
