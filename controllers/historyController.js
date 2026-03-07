@@ -108,6 +108,8 @@ exports.getDashboardReport = async (req, res) => {
           match: 0,
           mismatch: 0,
           callDuration: 0,
+          firstVisitTime: null,
+          lastVisitTime: null,
         };
       }
 
@@ -122,13 +124,31 @@ exports.getDashboardReport = async (req, res) => {
         salesmanMap[name].calls += 1;
         salesmanMap[name].callDuration += duration;
 
-      } else {
+      }else {
         // 🟢 VISIT RECORD
         totalVisits += 1;
 
         salesmanMap[name].visits += 1;
 
-        if (v.result === "match") {
+        const visitTime = new Date(v.createdAt);
+
+        // First Visit
+        if (
+          !salesmanMap[name].firstVisitTime ||
+          visitTime < new Date(salesmanMap[name].firstVisitTime)
+        ) {
+          salesmanMap[name].firstVisitTime = v.createdAt;
+        }
+
+        // Last Visit
+        if (
+          !salesmanMap[name].lastVisitTime ||
+          visitTime > new Date(salesmanMap[name].lastVisitTime)
+        ) {
+          salesmanMap[name].lastVisitTime = v.createdAt;
+        }
+
+        if (v.result === "match")  {
           totalMatch += 1;
           salesmanMap[name].match += 1;
         } else {
@@ -138,7 +158,20 @@ exports.getDashboardReport = async (req, res) => {
       }
     });
 
-    const salesmanPerformance = Object.values(salesmanMap);
+    const today = new Date().toISOString().split("T")[0];
+
+    const isToday =
+      startDate === today && endDate === today;
+
+    const sameDay = startDate === endDate;
+
+    const showTime = isToday || sameDay;
+
+    const salesmanPerformance = Object.values(salesmanMap).map((s) => ({
+      ...s,
+      inTime: showTime ? s.firstVisitTime : null,
+      outTime: showTime ? s.lastVisitTime : null,
+    }));
 
     res.json({
       success: true,
