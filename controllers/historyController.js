@@ -158,12 +158,14 @@ exports.getDashboardReport = async (req, res) => {
       }
     });
 
-    const today = new Date().toISOString().split("T")[0];
+    const startStr = new Date(startDate).toISOString().split("T")[0];
+    const endStr = new Date(endDate).toISOString().split("T")[0];
 
-    const isToday =
-      startDate === today && endDate === today;
+    const todayStr = new Date().toISOString().split("T")[0];
 
-    const sameDay = startDate === endDate;
+    const isToday = startStr === todayStr && endStr === todayStr;
+
+    const sameDay = startStr === endStr;
 
     const showTime = isToday || sameDay;
 
