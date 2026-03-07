@@ -101,16 +101,30 @@ exports.getDashboardReport = async (req, res) => {
 
   const visitDate = new Date(v.createdAt);
 
-      if (!salesmanMap[name]) {
-        salesmanMap[name] = {
-          name,
-          visits: 0,
-          calls: 0,
-          match: 0,
-          mismatch: 0,
-          callDuration: 0,
-        };
-      }
+  if (!salesmanMap[name]) {
+    salesmanMap[name] = {
+      name,
+      visits: 0,
+      calls: 0,
+      match: 0,
+      mismatch: 0,
+      callDuration: 0,
+      inTime: null,
+      outTime: null
+    };
+  }
+
+  // intime
+  if (!salesmanMap[name].inTime || visitDate < new Date(salesmanMap[name].inTime)) {
+    salesmanMap[name].inTime = visitDate;
+  }
+
+  // outtime
+  if (!salesmanMap[name].outTime || visitDate > new Date(salesmanMap[name].outTime)) {
+    salesmanMap[name].outTime = visitDate;
+  }
+
+  const isCall = v.sk?.startsWith("CALL#");
 
   if (isCall) {
     totalCalls += 1;
@@ -122,22 +136,21 @@ exports.getDashboardReport = async (req, res) => {
     salesmanMap[name].calls += 1;
     salesmanMap[name].callDuration += duration;
 
-      } else {
-        // 🟢 VISIT RECORD
-        totalVisits += 1;
+  } else {
+    totalVisits += 1;
 
     salesmanMap[name].visits += 1;
 
-        if (v.result === "match") {
-          totalMatch += 1;
-          salesmanMap[name].match += 1;
-        } else {
-          totalMismatch += 1;
-          salesmanMap[name].mismatch += 1;
-        }
-      }
-    });
+    if (v.result === "match") {
+      totalMatch += 1;
+      salesmanMap[name].match += 1;
+    } else {
+      totalMismatch += 1;
+      salesmanMap[name].mismatch += 1;
+    }
+  }
 
+});
     const salesmanPerformance = Object.values(salesmanMap);
 
     res.json({
@@ -157,4 +170,4 @@ exports.getDashboardReport = async (req, res) => {
       error: error.message,
     });
   }
-};
+}; 
