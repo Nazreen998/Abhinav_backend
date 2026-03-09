@@ -61,43 +61,40 @@ exports.add = async (req, res) => {
 // ======================
 // MANAGER / MASTER → LIST PENDING (company filter)
 // ======================
+const { QueryCommand } = require("@aws-sdk/lib-dynamodb");
+
 exports.listPending = async (req, res) => {
   try {
     const role = (req.user.role || "").toLowerCase();
 
-    let filterExpression =
-      "#status = :pending AND (attribute_not_exists(isDeleted) OR isDeleted = :false) AND #companyId = :cid";
-
-    let names = {
-      "#status": "status",
-      "#companyId": "companyId",
-    };
-
-    let values = {
-      ":pending": "pending",
-      ":false": false,
-      ":cid": req.user.companyId,
-    };
-
-    // Manager only their segment
-    if (role === "manager") {
-      filterExpression += " AND #segment = :segment";
-      names["#segment"] = "segment";
-      values[":segment"] = (req.user.segment || "").trim();
-    }
-
     const result = await ddb.send(
-      new ScanCommand({
+      new QueryCommand({
         TableName: TABLE_NAME,
-        FilterExpression: filterExpression,
-        ExpressionAttributeNames: names,
-        ExpressionAttributeValues: values,
+        IndexName: "company-status-index",
+        KeyConditionExpression: "#companyId = :cid AND #status = :pending",
+        ExpressionAttributeNames: {
+          "#companyId": "companyId",
+          "#status": "status",
+        },
+        ExpressionAttributeValues: {
+          ":cid": req.user.companyId,
+          ":pending": "pending",
+        },
       })
     );
 
-    const shops = (result.Items || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    let shops = result.Items || [];
+
+    // Manager segment filter
+    if (role === "manager") {
+      const seg = (req.user.segment || "").trim();
+      shops = shops.filter((s) => s.segment === seg);
+    }
+
+    shops.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     res.json({ success: true, shops });
+
   } catch (err) {
     console.error("LIST PENDING ERROR:", err);
     res.status(500).json({ success: false, error: err.message });
