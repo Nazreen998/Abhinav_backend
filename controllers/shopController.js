@@ -33,18 +33,18 @@ exports.listShops = async (req, res) => {
       "#companyId": "companyId",
     };
 
-    const role = req.user.role.toLowerCase();
+    const role = (req.user.role || "").toLowerCase();
 
     // 👷 SALESMAN → only own shops
     if (role === "salesman") {
       filterExpression += " AND createdByUserId = :uid";
-      expressionValues[":uid"] = req.user.id;
+      expressionValues[":uid"] = req.user.user_id || req.user.id; // safer
     }
 
     // 🧑‍💼 MANAGER → segment wise
     else if (role === "manager") {
       filterExpression += " AND #segment = :segment AND #status = :approved";
-      expressionValues[":segment"] = req.user.segment;
+      expressionValues[":segment"] = (req.user.segment || "").trim();
       expressionValues[":approved"] = "approved";
 
       expressionNames["#segment"] = "segment";
@@ -64,16 +64,27 @@ exports.listShops = async (req, res) => {
       expressionValues[":search"] = req.query.search;
     }
 
-    const result = await ddb.send(
-      new ScanCommand({
-        TableName: SHOP_TABLE,
-        FilterExpression: filterExpression,
-        ExpressionAttributeValues: expressionValues,
-        ExpressionAttributeNames: expressionNames,
-      })
-    );
+    let items = [];
+    let lastKey = undefined;
 
-    const shops = (result.Items || []).sort(
+    // 🔁 Scan ALL pages
+    do {
+      const result = await ddb.send(
+        new ScanCommand({
+          TableName: SHOP_TABLE,
+          FilterExpression: filterExpression,
+          ExpressionAttributeValues: expressionValues,
+          ExpressionAttributeNames: expressionNames,
+          ExclusiveStartKey: lastKey,
+        })
+      );
+
+      items.push(...(result.Items || []));
+      lastKey = result.LastEvaluatedKey;
+
+    } while (lastKey);
+
+    const shops = items.sort(
       (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
     );
 
