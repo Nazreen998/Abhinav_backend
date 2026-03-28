@@ -3,7 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 // ✅ ADD THIS
-const { sql, connectSQL } = require("./db-sql");
+const { sql, connectSQL } = require("./config/db-sql");
 // ROUTES
 const userRoutes = require("./routes/userRoutes");
 const shopRoutes = require("./routes/shopRoutes");
