@@ -12,6 +12,7 @@ const nextShopRoutes = require("./routes/nextShopRoutes");
 const historyRoutes = require("./routes/historyRoutes");
 const visitRoutes = require("./routes/visitRoutes");
 const pendingRoutes = require("./routes/pendingRoutes");
+const billRoutes = require("./routes/billRoutes");
 const app = express();
 // =======================
 // MIDDLEWARE
@@ -49,6 +50,7 @@ app.use("/api/nextshop", nextShopRoutes);     // ✅ ONLY HERE
 app.use("/api/history", historyRoutes);
 app.use("/api/pending", pendingRoutes);
 app.use("/api/visit", visitRoutes);
+app.use("/api/bills", billRoutes);
 
 // ❌ DO NOT mount nextShopRoutes again
 app.use("/api/assign", nextShopRoutes);   
