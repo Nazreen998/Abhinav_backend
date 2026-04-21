@@ -7,7 +7,7 @@ const {
 } = require("@aws-sdk/lib-dynamodb");
 const { QueryCommand } = require("@aws-sdk/lib-dynamodb");
 const { v4: uuidv4 } = require("uuid");
-const { getAccessToken, getShopSales } = require("../zohoService");
+const { getAccessToken, getShopSales } = require("../services/zohoService");
 
 const SHOP_TABLE = "abhinav_shops";
 const TABLE_NAME = "abhinav_visit_history";
