@@ -1,7 +1,13 @@
 const ddb = require("../config/dynamo");
-const { PutCommand, ScanCommand, GetCommand, UpdateCommand } = require("@aws-sdk/lib-dynamodb");
+const {
+  PutCommand,
+  ScanCommand,
+  GetCommand,
+  UpdateCommand,
+} = require("@aws-sdk/lib-dynamodb");
 const { QueryCommand } = require("@aws-sdk/lib-dynamodb");
 const { v4: uuidv4 } = require("uuid");
+const { getAccessToken, getShopSales } = require("../zohoService");
 
 const SHOP_TABLE = "abhinav_shops";
 const TABLE_NAME = "abhinav_visit_history";
@@ -20,7 +26,7 @@ exports.getCallHistory = async (req, res) => {
             ":sk": "CALL#",
           },
           ScanIndexForward: false, // latest first
-        })
+        }),
       );
 
       return res.json({ success: true, logs: data.Items || [] });
@@ -29,7 +35,8 @@ exports.getCallHistory = async (req, res) => {
     // manager/master: for now return error until we add GSI (next step)
     return res.status(400).json({
       success: false,
-      message: "Manager/Master history needs GSI (segment/company) - next step implement pannalam",
+      message:
+        "Manager/Master history needs GSI (segment/company) - next step implement pannalam",
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -54,7 +61,7 @@ exports.deleteVisit = async (req, res) => {
       new GetCommand({
         TableName: TABLE_NAME,
         Key: { pk, sk },
-      })
+      }),
     );
 
     const visit = visitRes.Item;
@@ -101,14 +108,13 @@ exports.deleteVisit = async (req, res) => {
           ":time": new Date().toISOString(),
           ":user": req.user.name,
         },
-      })
+      }),
     );
 
     res.json({
       success: true,
       message: "Visit hidden successfully",
     });
-
   } catch (e) {
     console.error("SOFT DELETE ERROR:", e);
     res.status(500).json({ success: false, error: e.message });
@@ -131,7 +137,7 @@ exports.saveVisit = async (req, res) => {
           pk: `SHOP#${shop_id}`,
           sk: "PROFILE",
         },
-      })
+      }),
     );
 
     const shop = shopRes.Item;
@@ -140,8 +146,7 @@ exports.saveVisit = async (req, res) => {
 
     // 🔥 8 DAYS TTL
     const days = 8;
-    const expireAt =
-      Math.floor(Date.now() / 1000) + days * 24 * 60 * 60;
+    const expireAt = Math.floor(Date.now() / 1000) + days * 24 * 60 * 60;
 
     const item = {
       pk: `VISIT#USER#${salesmanId}`,
@@ -173,7 +178,7 @@ exports.saveVisit = async (req, res) => {
       new PutCommand({
         TableName: TABLE_NAME,
         Item: item,
-      })
+      }),
     );
 
     res.json({ success: true });
@@ -186,9 +191,7 @@ exports.saveVisit = async (req, res) => {
 // ============================
 // GET VISITS (COMPANY SAFE)
 // ============================
-// ============================
-// GET VISITS (COMPANY SAFE)
-// ============================
+
 exports.getVisits = async (req, res) => {
   try {
     const role = (req.user.role || "").toLowerCase();
@@ -215,8 +218,9 @@ exports.getVisits = async (req, res) => {
     if (role === "manager") {
       filterExpression += " AND #segment = :segment";
       expressionNames["#segment"] = "segment";
-      expressionValues[":segment"] =
-        (req.user.segment || "").toLowerCase().trim();
+      expressionValues[":segment"] = (req.user.segment || "")
+        .toLowerCase()
+        .trim();
     }
 
     const result = await ddb.send(
@@ -225,14 +229,40 @@ exports.getVisits = async (req, res) => {
         FilterExpression: filterExpression,
         ExpressionAttributeNames: expressionNames,
         ExpressionAttributeValues: expressionValues,
-      })
+      }),
     );
+
+    // ✅ ZOHO SALES - Added below (nothing above changed)
+    const visits = result.Items || [];
+    const todayStr = new Date().toISOString().split("T")[0];
+    const todayVisits = visits.filter((v) =>
+      (v.visitDate || v.createdAt || "").startsWith(todayStr),
+    );
+
+    let zoho_sales = [];
+    if (todayVisits.length > 0) {
+      const {
+        getAccessToken,
+        getShopSales,
+      } = require("../services/zohoService");
+      const accessToken = await getAccessToken();
+      zoho_sales = (
+        await Promise.all(
+          todayVisits.map(async (visit) => {
+            const shopName = visit.shopName || visit.customerName || visit.name;
+            if (!shopName) return null;
+            const sales = await getShopSales(shopName, accessToken);
+            return { visitId: visit.id, shopName, sales };
+          }),
+        )
+      ).filter(Boolean);
+    }
 
     res.json({
       success: true,
-      visits: result.Items || [],
+      visits,
+      zoho_sales,
     });
-
   } catch (e) {
     console.error("GET VISITS ERROR:", e);
     res.status(500).json({
