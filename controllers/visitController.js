@@ -249,7 +249,11 @@ exports.getVisits = async (req, res) => {
       zoho_sales = (
         await Promise.all(
           todayVisits.map(async (visit) => {
-            const shopName = visit.shopName || visit.customerName || visit.name;
+            const shopName =
+              visit.shop_name ||
+              visit.shopName ||
+              visit.customerName ||
+              visit.name;
             if (!shopName) return null;
             const sales = await getShopSales(shopName, accessToken);
             return { visitId: visit.id, shopName, sales };
