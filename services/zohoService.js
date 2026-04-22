@@ -16,10 +16,10 @@ const getAccessToken = async () => {
   return response.data.access_token;
 };
 
-const getShopSales = async (shopName, accessToken) => {
-  const today = new Date();
-  const next7 = new Date();
-  next7.setDate(today.getDate() + 7);
+const getShopSales = async (shopName, accessToken, visitDate) => {
+  const fromDate = visitDate ? new Date(visitDate) : new Date();
+  const toDate = new Date(fromDate);
+  toDate.setDate(fromDate.getDate() + 7); // +7 days
 
   const formatDate = (d) => d.toISOString().split("T")[0];
 
@@ -32,6 +32,8 @@ const getShopSales = async (shopName, accessToken) => {
         params: {
           organization_id: process.env.ZOHO_ORG_ID,
           contact_name_contains: shopName,
+          date_start: formatDate(fromDate), // ← visit date
+          date_end: formatDate(toDate), // ← visit date + 7
         },
       },
     );
@@ -65,8 +67,8 @@ const getShopSales = async (shopName, accessToken) => {
     return {
       matched: true,
       zoho_name: customer.contact_name,
-      from_date: formatDate(today),
-      to_date: formatDate(next7),
+      from_date: formatDate(fromDate), // ← today → fromDate
+      to_date: formatDate(toDate), // ← next7 → toDate
       invoice_count: invoices.length,
       total_sales: totalSales,
       invoices,

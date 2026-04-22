@@ -234,10 +234,7 @@ exports.getVisits = async (req, res) => {
 
     // ✅ ZOHO SALES - Added below (nothing above changed)
     const visits = result.Items || [];
-    const todayStr = new Date().toISOString().split("T")[0];
-    const todayVisits = visits.filter((v) =>
-      (v.visitDate || v.createdAt || "").startsWith(todayStr),
-    );
+    const todayVisits = visits;
 
     let zoho_sales = [];
     if (todayVisits.length > 0) {
@@ -246,6 +243,7 @@ exports.getVisits = async (req, res) => {
         getShopSales,
       } = require("../services/zohoService");
       const accessToken = await getAccessToken();
+      // ✅ visit-ஓட createdAt date-ஐ from_date-ஆ pass பண்ணு
       zoho_sales = (
         await Promise.all(
           todayVisits.map(async (visit) => {
@@ -255,8 +253,15 @@ exports.getVisits = async (req, res) => {
               visit.customerName ||
               visit.name;
             if (!shopName) return null;
-            const sales = await getShopSales(shopName, accessToken);
-            return { visitId: visit.id, shopName, sales };
+            const sales = await getShopSales(
+              shopName,
+              accessToken,
+              visit.createdAt,
+            ); // ← createdAt pass பண்ணு
+            return {
+              shopName,
+              sales,
+            };
           }),
         )
       ).filter(Boolean);
