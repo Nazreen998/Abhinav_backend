@@ -67,11 +67,18 @@ const getShopSales = async (shopName, accessToken, visitDate) => {
     return {
       matched: true,
       zoho_name: customer.contact_name,
-      from_date: formatDate(fromDate), // ← today → fromDate
-      to_date: formatDate(toDate), // ← next7 → toDate
+      from_date: formatDate(fromDate),
+      to_date: formatDate(toDate),
       invoice_count: invoices.length,
       total_sales: totalSales,
-      invoices,
+      // ✅ Only needed fields
+      invoices: invoices.map((inv) => ({
+        invoice_number: inv.invoice_number,
+        date: inv.date,
+        total: inv.total,
+        balance: inv.balance,
+        status: inv.status,
+      })),
     };
   } catch (err) {
     return { matched: false, shop_name: shopName, error: err.message };
