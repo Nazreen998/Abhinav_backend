@@ -58,6 +58,8 @@ const getShopSales = async (shopName, accessToken) => {
     );
 
     const invoices = invoiceRes.data.invoices || [];
+    console.log("📋 FIRST INVOICE =>", JSON.stringify(invoices[0])); // ← இதை add பண்ணுங்க
+
     const totalSales = invoices.reduce((sum, inv) => sum + inv.total, 0);
 
     return {
