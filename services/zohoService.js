@@ -53,8 +53,8 @@ const getShopSales = async (shopName, accessToken, visitDate) => {
         params: {
           organization_id: process.env.ZOHO_ORG_ID,
           customer_id: customer.contact_id,
-          date_start: formatDate(today),
-          date_end: formatDate(next7),
+          date_start: formatDate(fromDate), // ← visit date
+          date_end: formatDate(toDate), // ← visit date + 7
         },
       },
     );
