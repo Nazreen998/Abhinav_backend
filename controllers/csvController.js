@@ -1,15 +1,47 @@
 const ddb = require("../config/dynamo");
 const { PutCommand, ScanCommand } = require("@aws-sdk/lib-dynamodb");
-const fs = require("fs");
-const path = require("path");
-const { parse } = require("csv-parse/sync");
 
-const CSV_TABLE = "abhinav_csv_data";
+const CSV_TABLE = "abhinav_shops";
 
 // =====================================================
-// ONE TIME - CSV → DynamoDB import
-// Terminal la: node scripts/importCSV.js
+// UPLOAD CSV - MASTER only
 // =====================================================
+exports.uploadCSV = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "CSV file illai" });
+    }
+
+    const fs = require("fs");
+    const { parse } = require("csv-parse/sync");
+
+    const fileContent = fs.readFileSync(req.file.path, "utf8");
+    const records = parse(fileContent, {
+      columns: true,
+      skip_empty_lines: true,
+      trim: true,
+    });
+
+    for (let i = 0; i < records.length; i++) {
+      await ddb.send(new PutCommand({
+        TableName: CSV_TABLE,
+        Item: {
+          pk: `SHOP#${req.user.companyId}_${Date.now()}_${i}`,
+          sk: "PROFILE",
+          companyId: req.user.companyId,
+          ...records[i],
+        },
+      }));
+    }
+
+    fs.unlinkSync(req.file.path);
+
+    res.json({ success: true, message: `${records.length} rows uploaded` });
+
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+};
 
 // =====================================================
 // GET CSV DATA - MASTER + DRIVER
