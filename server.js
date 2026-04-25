@@ -49,7 +49,7 @@ app.use("/api/assigned", assignedRoutes);
 app.use("/api/nextshop", nextShopRoutes);     // ✅ ONLY HERE
 app.use("/api/history", historyRoutes);
 app.use("/api/pending", pendingRoutes);
-app.use("/api/visit", visitRoutes);
+app.use("/api/visits", visitRoutes);
 app.use("/api/bills", billRoutes);
 
 // ❌ DO NOT mount nextShopRoutes again
