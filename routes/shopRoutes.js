@@ -34,7 +34,7 @@ router.post(
 // ==============================
 router.get(
   "/list",
-  auth(["master", "manager", "salesman"]),
+  auth(["master", "manager", "salesman", "driver"]),
   shopController.listShops,
 );
 
@@ -87,7 +87,7 @@ router.post(
 // ==============================
 router.get(
   "/:shopId/owner-call-duration",
-  auth(["master", "manager", "salesman"]),
+  auth(["master", "manager", "salesman", "driver"]),
   shopController.getOwnerCallDuration,
 );
 

@@ -38,7 +38,8 @@ module.exports = (allowedRoles = []) => {
 const userRole = (user.role || "").toLowerCase();
 const allowed = allowedRoles.map(r => r.toLowerCase());
 
-if (!allowed.includes(userRole)) {
+// ✅ CHANGE TO - allowedRoles empty a irundha anyone pass aaganum
+if (allowed.length > 0 && !allowed.includes(userRole)) {
   return res.status(403).json({
     message: "Forbidden: Insufficient permissions",
   });

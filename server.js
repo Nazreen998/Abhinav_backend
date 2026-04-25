@@ -68,6 +68,13 @@ app.get("/", (req, res) => {
 app.get("/api/assign/test", (req, res) => {
   res.json({ success: true, message: "ASSIGN ROUTE WORKING" });
 });
+
+// Existing routes ellam same ah irukattum...
+const csvRoutes = require("./routes/csvRoutes");  // ← ADD
+
+// Existing app.use lines ellam same...
+app.use("/api/csv", csvRoutes);  // ← ADD
+
 // =======================
 // SERVER START (🔥 MUST BE LAST)
 // =======================
