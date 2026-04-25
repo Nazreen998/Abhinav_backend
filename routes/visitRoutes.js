@@ -3,7 +3,7 @@ const auth = require("../middleware/auth");
 const ctrl = require("../controllers/visitController");
 
 // SAVE VISIT
-router.post("/save", auth(["salesman"]), ctrl.saveVisit);
+router.post("/save", auth(["salesman","driver"]), ctrl.saveVisit);
 
 // LIST VISITS
 router.get(
