@@ -5,9 +5,21 @@ const TABLE_NAME = "abhinav_visit_history";
 
 exports.getHistory = async (req, res) => {
   try {
+    const role = (req.user.role || "").toLowerCase();
     let result;
 
-    if (req.user.role === "salesman") {
+    if (role === "salesman") {
+      result = await ddb.send(
+        new ScanCommand({
+          TableName: TABLE_NAME,
+          FilterExpression: "pk = :pk",
+          ExpressionAttributeValues: {
+            ":pk": `VISIT#USER#${req.user.id}`,
+          },
+        })
+      );
+    } else if (role === "driver") {
+      // ✅ Driver - own visits only
       result = await ddb.send(
         new ScanCommand({
           TableName: TABLE_NAME,
@@ -18,30 +30,27 @@ exports.getHistory = async (req, res) => {
         })
       );
     } else {
-      // master / manager → see all
       result = await ddb.send(
         new ScanCommand({
           TableName: TABLE_NAME,
+          FilterExpression: "companyId = :cid",
+          ExpressionAttributeValues: {
+            ":cid": req.user.companyId,
+          },
         })
       );
     }
 
     const logs = result.Items || [];
 
-    logs.sort((a, b) =>
-      new Date(b.createdAt).compareTo(new Date(a.createdAt))
-    );
+    // ✅ Fix - compareTo illai, இப்படி pannanum
+    logs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-    res.json({
-      success: true,
-      logs,
-    });
+    res.json({ success: true, logs });
+
   } catch (e) {
     console.error("HISTORY ERROR:", e);
-    res.status(500).json({
-      success: false,
-      error: e.message,
-    });
+    res.status(500).json({ success: false, error: e.message });
   }
 };
 // ================= DASHBOARD REPORT =================

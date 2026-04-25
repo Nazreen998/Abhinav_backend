@@ -237,7 +237,7 @@ exports.getVisits = async (req, res) => {
     const todayVisits = visits;
 
     let zoho_sales = [];
-    if (todayVisits.length > 0) {
+    if (role !== "driver" && todayVisits.length > 0) {
       const {
         getAccessToken,
         getShopSales,
