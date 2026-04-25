@@ -81,20 +81,18 @@ exports.listShops = async (req, res) => {
           ExpressionAttributeValues: expressionValues,
           ExpressionAttributeNames: expressionNames,
           ExclusiveStartKey: lastKey,
-        })
+        }),
       );
 
       items.push(...(result.Items || []));
       lastKey = result.LastEvaluatedKey;
-
     } while (lastKey);
 
     const shops = items.sort(
-      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
     );
 
     res.json({ success: true, shops });
-
   } catch (err) {
     console.error("LIST SHOP ERROR:", err);
     res.status(500).json({ success: false, message: "Failed to fetch shops" });
@@ -120,7 +118,7 @@ exports.addShop = async (req, res) => {
     if (!primaryPhone) {
       return res.status(400).json({
         success: false,
-        message: "Primary phone number is required"
+        message: "Primary phone number is required",
       });
     }
 
@@ -139,9 +137,9 @@ exports.addShop = async (req, res) => {
       segment: (segment || "").toLowerCase(),
 
       // 🔥 ADD PHONES HERE
-     primaryPhone: primaryPhone || "",
-    secondaryPhone: secondaryPhone || "",
-    shopType: shopType || "office",
+      primaryPhone: primaryPhone || "",
+      secondaryPhone: secondaryPhone || "",
+      shopType: shopType || "office",
 
       status: "pending",
       isDeleted: false,
@@ -161,17 +159,16 @@ exports.addShop = async (req, res) => {
       new PutCommand({
         TableName: SHOP_TABLE,
         Item: shop,
-      })
+      }),
     );
 
     res.json({ success: true, shop });
-
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
 };
 //==============================
-//ADD CALL LOGS 
+//ADD CALL LOGS
 //==============================
 exports.addCallLog = async (req, res) => {
   try {
@@ -190,11 +187,13 @@ exports.addCallLog = async (req, res) => {
       new GetCommand({
         TableName: SHOP_TABLE,
         Key: { pk: `SHOP#${shopId}`, sk: "PROFILE" },
-      })
+      }),
     );
 
     if (!shopData.Item) {
-      return res.status(404).json({ success: false, message: "Shop not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Shop not found" });
     }
 
     const shop = shopData.Item;
@@ -203,8 +202,8 @@ exports.addCallLog = async (req, res) => {
 
     // 2) build history item
     const historyItem = {
-      pk: `USER#${req.user.id}`,          // Salesman-wise history fast
-      sk: `CALL#${timestamp}`,            // sort by time
+      pk: `USER#${req.user.id}`, // Salesman-wise history fast
+      sk: `CALL#${timestamp}`, // sort by time
 
       history_id: uuidv4(),
 
@@ -215,7 +214,7 @@ exports.addCallLog = async (req, res) => {
       companyName: shop.companyName,
 
       ownerPhone: shop.primaryPhone || "", // shop owner number
-      fromNumber,                           // caller
+      fromNumber, // caller
       durationSec: Number(durationSec),
 
       createdByUserId: req.user.id,
@@ -231,7 +230,7 @@ exports.addCallLog = async (req, res) => {
       new PutCommand({
         TableName: "abhinav_visit_history",
         Item: historyItem,
-      })
+      }),
     );
 
     res.json({ success: true, message: "Call log saved in visit history" });
@@ -253,7 +252,7 @@ exports.getOwnerCallDuration = async (req, res) => {
         ExpressionAttributeValues: {
           ":pk": `SHOP#${shopId}`,
         },
-      })
+      }),
     );
 
     const items = data.Items || [];
@@ -265,7 +264,7 @@ exports.getOwnerCallDuration = async (req, res) => {
       });
     }
 
-    const profile = items.find(item => item.sk === "PROFILE");
+    const profile = items.find((item) => item.sk === "PROFILE");
 
     if (!profile) {
       return res.status(404).json({
@@ -274,7 +273,7 @@ exports.getOwnerCallDuration = async (req, res) => {
       });
     }
 
-    const calls = items.filter(item => item.sk.startsWith("CALL#"));
+    const calls = items.filter((item) => item.sk.startsWith("CALL#"));
 
     const totalDuration = calls.reduce((sum, call) => {
       return sum + (call.durationSec || 0);
@@ -287,7 +286,6 @@ exports.getOwnerCallDuration = async (req, res) => {
       totalDurationSec: totalDuration,
       totalMinutes: (totalDuration / 60).toFixed(2),
     });
-
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -310,12 +308,11 @@ exports.addCallLogByPhone = async (req, res) => {
     const shopResult = await ddb.send(
       new ScanCommand({
         TableName: SHOP_TABLE,
-        FilterExpression:
-          "primaryPhone = :phone OR secondaryPhone = :phone",
+        FilterExpression: "primaryPhone = :phone OR secondaryPhone = :phone",
         ExpressionAttributeValues: {
           ":phone": phone,
         },
-      })
+      }),
     );
 
     if (!shopResult.Items || shopResult.Items.length === 0) {
@@ -356,14 +353,13 @@ exports.addCallLogByPhone = async (req, res) => {
       new PutCommand({
         TableName: VISIT_HISTORY_TABLE,
         Item: historyItem,
-      })
+      }),
     );
 
     res.json({
       success: true,
       message: "Call log saved using phone match",
     });
-
   } catch (err) {
     console.error("CALL LOG PHONE API ERROR:", err);
     res.status(500).json({
@@ -460,7 +456,7 @@ exports.bulkUploadFromExcel = async (req, res) => {
             ":uname": soName,
             ":cid": req.user.companyId,
           },
-        })
+        }),
       );
 
       if (!userResult.Items || userResult.Items.length === 0) {
@@ -471,9 +467,7 @@ exports.bulkUploadFromExcel = async (req, res) => {
       const soUser = userResult.Items[0];
       const soId =
         soUser.user_id ||
-        (typeof soUser.pk === "string"
-          ? soUser.pk.replace("USER#", "")
-          : "");
+        (typeof soUser.pk === "string" ? soUser.pk.replace("USER#", "") : "");
 
       // =========================
       // 4️⃣ DUPLICATE CHECK (COMPANY SAFE)
@@ -492,16 +486,13 @@ exports.bulkUploadFromExcel = async (req, res) => {
             ":name": shopName,
             ":false": false,
           },
-        })
+        }),
       );
 
       // =========================
       // 5️⃣ UPDATE IF EXISTS
       // =========================
-      if (
-        Array.isArray(existingShop.Items) &&
-        existingShop.Items.length > 0
-      ) {
+      if (Array.isArray(existingShop.Items) && existingShop.Items.length > 0) {
         const shop = existingShop.Items[0];
 
         await ddb.send(
@@ -525,7 +516,7 @@ exports.bulkUploadFromExcel = async (req, res) => {
               ":cid": req.user.companyId,
               ":cname": req.user.companyName,
             },
-          })
+          }),
         );
 
         updated++;
@@ -556,7 +547,7 @@ exports.bulkUploadFromExcel = async (req, res) => {
               companyName: req.user.companyName,
               createdAt: new Date().toISOString(),
             },
-          })
+          }),
         );
 
         inserted++;
@@ -599,7 +590,7 @@ exports.approveShop = async (req, res) => {
           ":by": req.user?.name || "",
           ":at": new Date().toISOString(),
         },
-      })
+      }),
     );
 
     res.json({ success: true, message: "Shop approved" });
@@ -641,7 +632,7 @@ exports.updateShop = async (req, res) => {
         UpdateExpression: updateExp,
         ExpressionAttributeNames: attrNames,
         ExpressionAttributeValues: attrValues,
-      })
+      }),
     );
 
     res.json({ success: true, message: "Shop updated" });
@@ -666,7 +657,7 @@ exports.softDeleteShop = async (req, res) => {
           ":true": true,
           ":at": new Date().toISOString(),
         },
-      })
+      }),
     );
 
     res.json({ success: true, message: "Shop deleted" });
@@ -701,7 +692,7 @@ exports.updateShopImage = async (req, res) => {
         ExpressionAttributeValues: {
           ":img": shopImage,
         },
-      })
+      }),
     );
 
     res.json({

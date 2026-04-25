@@ -17,7 +17,7 @@ router.post(
   "/add",
   auth(["salesman", "manager"]),
   uploadShopImage.single("shopImage"),
-  shopController.addShop
+  shopController.addShop,
 );
 
 // ==============================
@@ -27,15 +27,15 @@ router.post(
   "/bulk-excel-upload",
   auth(["master", "manager"]),
   upload.single("file"),
-  shopController.bulkUploadFromExcel
+  shopController.bulkUploadFromExcel,
 );
 // ==============================
 // LIST SHOPS
 // ==============================
 router.get(
   "/list",
-  auth(["master", "manager", "salesman","driver"]),
-  shopController.listShops
+  auth(["master", "manager", "salesman", "driver"]),
+  shopController.listShops,
 );
 
 // ==============================
@@ -44,7 +44,7 @@ router.get(
 router.put(
   "/approve/:id",
   auth(["master", "manager"]),
-  shopController.approveShop
+  shopController.approveShop,
 );
 
 // ==============================
@@ -53,7 +53,7 @@ router.put(
 router.put(
   "/update/:id",
   auth(["master", "manager"]),
-  shopController.updateShop
+  shopController.updateShop,
 );
 
 // ==============================
@@ -62,7 +62,7 @@ router.put(
 router.delete(
   "/delete/:id",
   auth(["master", "manager"]),
-  shopController.softDeleteShop
+  shopController.softDeleteShop,
 );
 
 // ==============================
@@ -71,7 +71,7 @@ router.delete(
 router.put(
   "/update-image/:id",
   auth(["salesman"]), // 🔥 only salesman
-  shopController.updateShopImage
+  shopController.updateShopImage,
 );
 // ==============================
 // ADD CALL LOG (TEST PURPOSE)
@@ -79,7 +79,7 @@ router.put(
 router.post(
   "/:shopId/add-call",
   auth(["salesman", "manager"]),
-  shopController.addCallLog
+  shopController.addCallLog,
 );
 
 // ==============================
@@ -87,8 +87,8 @@ router.post(
 // ==============================
 router.get(
   "/:shopId/owner-call-duration",
-  auth(["master", "manager", "salesman","driver"]),
-  shopController.getOwnerCallDuration
+  auth(["master", "manager", "salesman", "driver"]),
+  shopController.getOwnerCallDuration,
 );
 
 // ==============================
@@ -97,6 +97,6 @@ router.get(
 router.post(
   "/calls",
   auth(["salesman", "manager"]),
-  shopController.addCallLogByPhone
+  shopController.addCallLogByPhone,
 );
 module.exports = router;
