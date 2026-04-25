@@ -8,7 +8,7 @@ router.post("/save", auth(["salesman"]), ctrl.saveVisit);
 // LIST VISITS
 router.get(
   "/list",
-  auth(["master", "manager", "salesman"]),
+  auth(["master", "manager", "salesman","driver"]),
   ctrl.getVisits
 );
 
@@ -20,7 +20,7 @@ router.delete(
 
 router.get(
   "/history",
-  auth(["master", "manager", "salesman"]),
+  auth(["master", "manager", "salesman","driver"]),
   ctrl.getCallHistory
 );
 module.exports = router;
