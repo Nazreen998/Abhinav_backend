@@ -23,9 +23,10 @@ exports.getHistory = async (req, res) => {
       result = await ddb.send(
         new ScanCommand({
           TableName: TABLE_NAME,
-          FilterExpression: "pk = :pk",
-          ExpressionAttributeValues: {
-            ":pk": `VISIT#USER#${req.user.id}`,
+          FilterExpression: "salesmanId = :uid AND companyId = :cid",
+      ExpressionAttributeValues: {
+        ":uid": req.user.id,
+        ":cid": req.user.companyId,
           },
         })
       );
