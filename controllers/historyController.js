@@ -16,19 +16,7 @@ exports.getHistory = async (req, res) => {
           ExpressionAttributeValues: {
             ":pk": `VISIT#USER#${req.user.id}`,
           },
-        })
-      );
-    } else if (role === "driver") {
-      // ✅ Driver - own visits only
-      result = await ddb.send(
-        new ScanCommand({
-          TableName: TABLE_NAME,
-          FilterExpression: "salesmanId = :uid AND companyId = :cid",
-      ExpressionAttributeValues: {
-        ":uid": req.user.id,
-        ":cid": req.user.companyId,
-          },
-        })
+        }),
       );
     } else {
       result = await ddb.send(
@@ -38,7 +26,7 @@ exports.getHistory = async (req, res) => {
           ExpressionAttributeValues: {
             ":cid": req.user.companyId,
           },
-        })
+        }),
       );
     }
 
@@ -48,7 +36,6 @@ exports.getHistory = async (req, res) => {
     logs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     res.json({ success: true, logs });
-
   } catch (e) {
     console.error("HISTORY ERROR:", e);
     res.status(500).json({ success: false, error: e.message });
@@ -81,7 +68,7 @@ exports.getDashboardReport = async (req, res) => {
           ":cid": companyId,
           ":true": true,
         },
-      })
+      }),
     );
 
     let visits = result.Items || [];
@@ -101,55 +88,56 @@ exports.getDashboardReport = async (req, res) => {
 
     const salesmanMap = {};
 
-  visits.forEach((v) => {
+    visits.forEach((v) => {
+      const name =
+        v.salesmanName || v.createdByUserName || v.createdBy || "Unknown";
 
-  const name =
-    v.salesmanName ||
-    v.createdByUserName ||
-    v.createdBy ||
-    "Unknown";
+      const visitDate = new Date(v.createdAt);
 
-  const visitDate = new Date(v.createdAt);
+      if (!salesmanMap[name]) {
+        salesmanMap[name] = {
+          name,
+          visits: 0,
+          calls: 0,
+          match: 0,
+          mismatch: 0,
+          callDuration: 0,
+          inTime: null,
+          outTime: null,
+        };
+      }
 
-  if (!salesmanMap[name]) {
-    salesmanMap[name] = {
-      name,
-      visits: 0,
-      calls: 0,
-      match: 0,
-      mismatch: 0,
-      callDuration: 0,
-      inTime: null,
-      outTime: null
-    };
-  }
+      // intime
+      if (
+        !salesmanMap[name].inTime ||
+        visitDate < new Date(salesmanMap[name].inTime)
+      ) {
+        salesmanMap[name].inTime = visitDate;
+      }
 
-  // intime
-  if (!salesmanMap[name].inTime || visitDate < new Date(salesmanMap[name].inTime)) {
-    salesmanMap[name].inTime = visitDate;
-  }
+      // outtime
+      if (
+        !salesmanMap[name].outTime ||
+        visitDate > new Date(salesmanMap[name].outTime)
+      ) {
+        salesmanMap[name].outTime = visitDate;
+      }
 
-  // outtime
-  if (!salesmanMap[name].outTime || visitDate > new Date(salesmanMap[name].outTime)) {
-    salesmanMap[name].outTime = visitDate;
-  }
+      const isCall = v.sk?.startsWith("CALL#");
 
-  const isCall = v.sk?.startsWith("CALL#");
+      if (isCall) {
+        totalCalls += 1;
 
-  if (isCall) {
-    totalCalls += 1;
+        const duration = Number(v.durationSec || 0);
 
-    const duration = Number(v.durationSec || 0);
+        totalCallDuration += duration;
 
-    totalCallDuration += duration;
+        salesmanMap[name].calls += 1;
+        salesmanMap[name].callDuration += duration;
+      } else {
+        totalVisits += 1;
 
-    salesmanMap[name].calls += 1;
-    salesmanMap[name].callDuration += duration;
-
-  } else {
-    totalVisits += 1;
-
-    salesmanMap[name].visits += 1;
+        salesmanMap[name].visits += 1;
 
         const visitTime = new Date(v.createdAt);
 
@@ -169,7 +157,7 @@ exports.getDashboardReport = async (req, res) => {
           salesmanMap[name].lastVisitTime = v.createdAt;
         }
 
-        if (v.result === "match")  {
+        if (v.result === "match") {
           totalMatch += 1;
           salesmanMap[name].match += 1;
         } else {
@@ -205,7 +193,6 @@ exports.getDashboardReport = async (req, res) => {
       totalMismatch,
       salesmanPerformance,
     });
-
   } catch (error) {
     console.error("DASHBOARD ERROR:", error);
     res.status(500).json({
@@ -213,4 +200,4 @@ exports.getDashboardReport = async (req, res) => {
       error: error.message,
     });
   }
-}; 
+};

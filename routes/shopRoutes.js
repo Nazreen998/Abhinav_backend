@@ -34,7 +34,7 @@ router.post(
 // ==============================
 router.get(
   "/list",
-  auth(["master", "manager", "salesman", "driver"]),
+  auth(["master", "manager", "salesman"]),
   shopController.listShops,
 );
 
@@ -87,7 +87,7 @@ router.post(
 // ==============================
 router.get(
   "/:shopId/owner-call-duration",
-  auth(["master", "manager", "salesman", "driver"]),
+  auth(["master", "manager", "salesman"]),
   shopController.getOwnerCallDuration,
 );
 
@@ -98,5 +98,15 @@ router.post(
   "/calls",
   auth(["salesman", "manager"]),
   shopController.addCallLogByPhone,
+);
+
+// ==============================
+// MASTER BULK UPLOAD (ONLY MASTER)
+// ==============================
+router.post(
+  "/master-bulk-upload",
+  auth(["master"]),
+  upload.single("file"),
+  shopController.masterBulkUpload,
 );
 module.exports = router;
