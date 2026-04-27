@@ -125,11 +125,26 @@ exports.deleteVisit = async (req, res) => {
 // ============================
 exports.saveVisit = async (req, res) => {
   try {
-    const { shop_id, shop_name, result, distance, userLat, userLng, shopLat, shopLng } = req.body;
+    const { shop_id, shop_name, result, distance } = req.body;
 
     const salesmanId = req.user.id;
     const salesmanName = req.user.name;
+
+    const shopRes = await ddb.send(
+      new GetCommand({
+        TableName: SHOP_TABLE,
+        Key: {
+          pk: `SHOP#${shop_id}`,
+          sk: "PROFILE",
+        },
+      }),
+    );
+
+    const shop = shopRes.Item;
+
     const now = new Date().toISOString();
+
+    // 🔥 8 DAYS TTL
     const days = 8;
     const expireAt = Math.floor(Date.now() / 1000) + days * 24 * 60 * 60;
 
@@ -148,32 +163,31 @@ exports.saveVisit = async (req, res) => {
       companyId: req.user.companyId,
       companyName: req.user.companyName,
 
-      result: result || "mismatch",
+      segment: (shop?.segment || "").toLowerCase(),
+
+      result: result || "matched",
       distance: distance || 0,
-
-      // ✅ Location data
-      userLat: userLat || 0,
-      userLng: userLng || 0,
-      shopLat: shopLat || 0,
-      shopLng: shopLng || 0,
-
       status: "completed",
+
       createdAt: now,
-      expireAt,
+
+      expireAt, // ✅ TTL field
     };
 
-    await ddb.send(new PutCommand({
-      TableName: TABLE_NAME,
-      Item: item,
-    }));
+    await ddb.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: item,
+      }),
+    );
 
     res.json({ success: true });
-
   } catch (e) {
     console.error("SAVE VISIT ERROR:", e);
     res.status(500).json({ success: false, error: e.message });
   }
 };
+
 // ============================
 // GET VISITS (COMPANY SAFE)
 // ============================
