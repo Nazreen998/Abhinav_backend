@@ -99,14 +99,4 @@ router.post(
   auth(["salesman", "manager"]),
   shopController.addCallLogByPhone,
 );
-
-// ==============================
-// MASTER BULK UPLOAD (ONLY MASTER)
-// ==============================
-router.post(
-  "/master-bulk-upload",
-  auth(["master"]),
-  upload.single("file"),
-  shopController.masterBulkUpload,
-);
 module.exports = router;
