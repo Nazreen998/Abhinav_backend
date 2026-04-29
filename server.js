@@ -13,6 +13,9 @@ const historyRoutes = require("./routes/historyRoutes");
 const visitRoutes = require("./routes/visitRoutes");
 const pendingRoutes = require("./routes/pendingRoutes");
 const billRoutes = require("./routes/billRoutes");
+const attendanceRoutes = require("./routes/attendanceRoutes");
+const locationRoutes = require("./routes/locationRoutes");
+
 const app = express();
 // =======================
 // MIDDLEWARE
@@ -46,14 +49,16 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/api/users", userRoutes);
 app.use("/api/shops", shopRoutes);
 app.use("/api/assigned", assignedRoutes);
-app.use("/api/nextshop", nextShopRoutes);     // ✅ ONLY HERE
+app.use("/api/nextshop", nextShopRoutes); // ✅ ONLY HERE
 app.use("/api/history", historyRoutes);
 app.use("/api/pending", pendingRoutes);
 app.use("/api/visits", visitRoutes);
 app.use("/api/bills", billRoutes);
+app.use("/api/attendance", attendanceRoutes);
+app.use("/api/locations", locationRoutes);
 
 // ❌ DO NOT mount nextShopRoutes again
-app.use("/api/assign", nextShopRoutes);   
+app.use("/api/assign", nextShopRoutes);
 
 // =======================
 // DEFAULT ROUTE
@@ -70,10 +75,10 @@ app.get("/api/assign/test", (req, res) => {
 });
 
 // Existing routes ellam same ah irukattum...
-const csvRoutes = require("./routes/csvRoutes");  // ← ADD
+const csvRoutes = require("./routes/csvRoutes"); // ← ADD
 
 // Existing app.use lines ellam same...
-app.use("/api/csv", csvRoutes);  // ← ADD
+app.use("/api/csv", csvRoutes); // ← ADD
 
 // =======================
 // SERVER START (🔥 MUST BE LAST)
