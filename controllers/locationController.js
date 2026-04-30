@@ -1,4 +1,4 @@
-const { Location } = require("../models/locationModel");
+const Location = require("../models/locationModel");
 // ✅ Initial create - company + locations array
 module.exports = {
   createLocations: async (req, res) => {
