@@ -10,7 +10,7 @@ module.exports.checkIn = async (req, res) => {
   const { lat, lng } = req.body;
 
   // ✅ FIXED - user_id use பண்றோம்
-  const uid = req.user.user_id;
+  const uid = req.user.user_id || req.user.id;
   const userName = req.user.name || "UNKNOWN";
   const companyId = req.user.companyId;
   const companyName = req.user.companyName || "";
