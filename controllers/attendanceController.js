@@ -1,12 +1,9 @@
 const { Attendance } = require("../models/attendanceModel");
 const { calculateDistance } = require("../utils/distanceCalculator");
-const { locations } = require("../config/locations");
+const Location = require("../models/locationModel"); // ✅ DB locations
 
 const todayIST = () =>
   new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
-
-const getISTNow = () =>
-  new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
 
 // ─── CHECK IN ───────────────────────────────────────────────
 module.exports.checkIn = async (req, res) => {
@@ -16,9 +13,17 @@ module.exports.checkIn = async (req, res) => {
   const uid = rawPk?.includes("#") ? rawPk.split("#")[1] : rawPk;
   const userName =
     req.user.name || req.user.Name || req.user.username || "UNKNOWN";
+  const companyId = req.user.companyId; // ✅ token-லிருந்து
 
   if (!lat || !lng) {
     return res.json({ ok: false, error: "location_required" });
+  }
+
+  // ✅ DB-லிருந்து locations fetch
+  const locations = await Location.getByCompany(companyId);
+
+  if (!locations || locations.length === 0) {
+    return res.json({ ok: false, error: "no_locations_configured" });
   }
 
   let matchedLocation = null;
@@ -45,7 +50,7 @@ module.exports.checkIn = async (req, res) => {
       lat,
       lng,
       distance,
-      locationId: matchedLocation.id,
+      locationId: matchedLocation.locationId,
       locationName: matchedLocation.name,
     });
 
@@ -62,9 +67,17 @@ module.exports.checkOut = async (req, res) => {
 
   const rawPk = req.user.pk;
   const uid = rawPk?.includes("#") ? rawPk.split("#")[1] : rawPk;
+  const companyId = req.user.companyId; // ✅ token-லிருந்து
 
   if (!lat || !lng) {
     return res.json({ ok: false, error: "location_required" });
+  }
+
+  // ✅ DB-லிருந்து locations fetch
+  const locations = await Location.getByCompany(companyId);
+
+  if (!locations || locations.length === 0) {
+    return res.json({ ok: false, error: "no_locations_configured" });
   }
 
   let matchedLocation = null;
@@ -97,7 +110,7 @@ module.exports.checkOut = async (req, res) => {
       date: attendanceDate,
       lat,
       lng,
-      locationId: matchedLocation.id,
+      locationId: matchedLocation.locationId,
       locationName: matchedLocation.name,
       distance,
     });
