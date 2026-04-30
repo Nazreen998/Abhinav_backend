@@ -67,7 +67,7 @@ module.exports.checkOut = async (req, res) => {
   const { lat, lng } = req.body;
 
   // ✅ FIXED - user_id use பண்றோம்
-  const uid = req.user.user_id;
+  const uid = req.user.id;
   const companyId = req.user.companyId;
 
   if (!lat || !lng) {
