@@ -10,7 +10,7 @@ module.exports.checkIn = async (req, res) => {
   const { lat, lng } = req.body;
 
   // ✅ FIXED - user_id use பண்றோம்
-  const uid = req.user.user_id || req.user.id;
+  const uid = req.user.user_id || req.user.id; // fallback to id if user_id is not present
   const userName = req.user.name || "UNKNOWN";
   const companyId = req.user.companyId;
   const companyName = req.user.companyName || "";
@@ -119,5 +119,77 @@ module.exports.checkOut = async (req, res) => {
   } catch (e) {
     console.error("CHECKOUT ERROR:", e);
     res.json({ ok: false, error: "already_checked_out" });
+  }
+};
+
+// ─── ATTENDANCE DASHBOARD ────────────────────────────────
+module.exports.getAttendanceReport = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const companyId = req.user.companyId;
+
+    if (!startDate || !endDate) {
+      return res.json({ ok: false, error: "startDate & endDate required" });
+    }
+
+    const start = startDate; // "2026-04-01"
+    const end = endDate; // "2026-04-30"
+
+    // ✅ GSI1 - DATE range scan
+    const { ScanCommand } = require("@aws-sdk/lib-dynamodb");
+    const ddb = require("../config/dynamo");
+
+    const result = await ddb.send(
+      new ScanCommand({
+        TableName: "abhinav_attendance",
+        FilterExpression: "companyId = :cid AND GSI1PK BETWEEN :start AND :end",
+        ExpressionAttributeValues: {
+          ":cid": companyId,
+          ":start": `DATE#${start}`,
+          ":end": `DATE#${end}`,
+        },
+      }),
+    );
+
+    const records = result.Items || [];
+
+    // ✅ Per user summary
+    const userMap = {};
+
+    records.forEach((r) => {
+      const name = r.userName || "Unknown";
+      const date = r.GSI1PK?.replace("DATE#", "") || "";
+
+      if (!userMap[name]) {
+        userMap[name] = {
+          name,
+          totalDays: 0,
+          presentDays: [],
+          records: [],
+        };
+      }
+
+      userMap[name].totalDays += 1;
+      userMap[name].presentDays.push(date);
+      userMap[name].records.push({
+        date,
+        checkInAt: r.checkInAt || null,
+        checkOutAt: r.checkOutAt || null,
+        checkInLocation: r.checkInLocationName || null,
+        checkOutLocation: r.checkOutLocationName || null,
+        status: r.status || "CHECKED_IN",
+      });
+    });
+
+    const attendanceReport = Object.values(userMap);
+
+    res.json({
+      ok: true,
+      totalRecords: records.length,
+      attendanceReport,
+    });
+  } catch (e) {
+    console.error("ATTENDANCE REPORT ERROR:", e);
+    res.json({ ok: false, error: e.message });
   }
 };
