@@ -1,5 +1,5 @@
 const Location = require("../models/locationModel");
-// ✅ Initial create - company + locations array
+
 module.exports = {
   createLocations: async (req, res) => {
     const { locations } = req.body;
@@ -18,21 +18,21 @@ module.exports = {
   },
 };
 
-// ✅ Single location add
+// ✅ companyName add பண்ணினேன்
 module.exports.addLocation = async (req, res) => {
   const { name, lat, lng, radius } = req.body;
-  const { companyId } = req.user;
+  const { companyId, companyName } = req.user; // ✅ companyName எடுக்கிறோம்
 
   if (!name || !lat || !lng || !radius) {
     return res.json({ ok: false, error: "all_fields_required" });
   }
 
-  // ✅ Auto generate
   const locationId = "LOC" + Date.now();
 
   try {
     await Location.addLocation({
       companyId,
+      companyName, // ✅ pass பண்றோம்
       location: { locationId, name, lat, lng, radius },
     });
     res.json({ ok: true, message: "Location added", locationId });
@@ -41,7 +41,6 @@ module.exports.addLocation = async (req, res) => {
   }
 };
 
-// ✅ Get all locations
 module.exports.getLocations = async (req, res) => {
   const { companyId } = req.user;
   try {

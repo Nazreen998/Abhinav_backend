@@ -1,6 +1,6 @@
 const { Attendance } = require("../models/attendanceModel");
 const { calculateDistance } = require("../utils/distanceCalculator");
-const Location = require("../models/locationModel"); // ✅ DB locations
+const Location = require("../models/locationModel");
 
 const todayIST = () =>
   new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
@@ -9,17 +9,16 @@ const todayIST = () =>
 module.exports.checkIn = async (req, res) => {
   const { lat, lng } = req.body;
 
-  const rawPk = req.user.pk;
-  const uid = rawPk?.includes("#") ? rawPk.split("#")[1] : rawPk;
-  const userName =
-    req.user.name || req.user.Name || req.user.username || "UNKNOWN";
-  const companyId = req.user.companyId; // ✅ token-லிருந்து
+  // ✅ FIXED - user_id use பண்றோம்
+  const uid = req.user.user_id;
+  const userName = req.user.name || "UNKNOWN";
+  const companyId = req.user.companyId;
+  const companyName = req.user.companyName || "";
 
   if (!lat || !lng) {
     return res.json({ ok: false, error: "location_required" });
   }
 
-  // ✅ DB-லிருந்து locations fetch
   const locations = await Location.getByCompany(companyId);
 
   if (!locations || locations.length === 0) {
@@ -46,6 +45,8 @@ module.exports.checkIn = async (req, res) => {
     await Attendance.checkIn({
       uid,
       userName,
+      companyId,
+      companyName, // ✅ save பண்றோம்
       date: todayIST(),
       lat,
       lng,
@@ -65,15 +66,14 @@ module.exports.checkIn = async (req, res) => {
 module.exports.checkOut = async (req, res) => {
   const { lat, lng } = req.body;
 
-  const rawPk = req.user.pk;
-  const uid = rawPk?.includes("#") ? rawPk.split("#")[1] : rawPk;
-  const companyId = req.user.companyId; // ✅ token-லிருந்து
+  // ✅ FIXED - user_id use பண்றோம்
+  const uid = req.user.user_id;
+  const companyId = req.user.companyId;
 
   if (!lat || !lng) {
     return res.json({ ok: false, error: "location_required" });
   }
 
-  // ✅ DB-லிருந்து locations fetch
   const locations = await Location.getByCompany(companyId);
 
   if (!locations || locations.length === 0) {

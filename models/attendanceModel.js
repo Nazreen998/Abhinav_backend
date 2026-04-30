@@ -36,6 +36,8 @@ const Attendance = {
   async checkIn({
     uid,
     userName,
+    companyId,
+    companyName,
     date,
     lat,
     lng,
@@ -52,6 +54,8 @@ const Attendance = {
           GSI1PK: `DATE#${date}`,
           GSI1SK: `LOC#${locationId}#USER#${uid}`,
           userName,
+          companyId, // ✅
+          companyName, // ✅
           checkInAt: nowIST(),
           checkInLat: lat,
           checkInLng: lng,
