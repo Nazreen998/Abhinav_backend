@@ -1,7 +1,6 @@
 const ddb = require("../config/dynamo");
 const {
   PutCommand,
-  ScanCommand,
   GetCommand,
   UpdateCommand,
 } = require("@aws-sdk/lib-dynamodb");
@@ -33,7 +32,7 @@ module.exports = {
           SK: "LOCATIONS",
           companyId,
           companyName,
-          locations, // array of locations
+          locations,
           createdAt: new Date().toISOString(),
         },
         ConditionExpression: "attribute_not_exists(PK)",
@@ -41,8 +40,35 @@ module.exports = {
     );
   },
 
-  // ✅ Existing company-க்கு புது location add
+  // ✅ FIXED - Item இல்லன்னா create, இருந்தா append
   async addLocation({ companyId, location }) {
+    const existing = await ddb.send(
+      new GetCommand({
+        TableName: TABLE,
+        Key: {
+          PK: `COMPANY#${companyId}`,
+          SK: "LOCATIONS",
+        },
+      }),
+    );
+
+    // ✅ First location - புதுசா create
+    if (!existing.Item) {
+      return ddb.send(
+        new PutCommand({
+          TableName: TABLE,
+          Item: {
+            PK: `COMPANY#${companyId}`,
+            SK: "LOCATIONS",
+            companyId,
+            locations: [location],
+            createdAt: new Date().toISOString(),
+          },
+        }),
+      );
+    }
+
+    // ✅ Already exists - append பண்ணு
     return ddb.send(
       new UpdateCommand({
         TableName: TABLE,
@@ -58,7 +84,7 @@ module.exports = {
     );
   },
 
-  // ✅ Location remove (index தெரிஞ்சா)
+  // ✅ Location remove
   async removeLocation({ companyId, locationIndex }) {
     return ddb.send(
       new UpdateCommand({
