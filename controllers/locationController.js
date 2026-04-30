@@ -20,19 +20,22 @@ module.exports = {
 
 // ✅ Single location add
 module.exports.addLocation = async (req, res) => {
-  const { locationId, name, lat, lng, radius } = req.body;
+  const { name, lat, lng, radius } = req.body;
   const { companyId } = req.user;
 
-  if (!locationId || !name || !lat || !lng || !radius) {
+  if (!name || !lat || !lng || !radius) {
     return res.json({ ok: false, error: "all_fields_required" });
   }
+
+  // ✅ Auto generate
+  const locationId = "LOC" + Date.now();
 
   try {
     await Location.addLocation({
       companyId,
       location: { locationId, name, lat, lng, radius },
     });
-    res.json({ ok: true, message: "Location added" });
+    res.json({ ok: true, message: "Location added", locationId });
   } catch (e) {
     res.json({ ok: false, error: e.message });
   }
