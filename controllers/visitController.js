@@ -8,6 +8,7 @@ const {
 const { QueryCommand } = require("@aws-sdk/lib-dynamodb");
 const { v4: uuidv4 } = require("uuid");
 const { getAccessToken, getShopSales } = require("../services/zohoService");
+const { Attendance } = require("../models/attendanceModel");
 
 const SHOP_TABLE = "abhinav_shops";
 const TABLE_NAME = "abhinav_visit_history";
@@ -129,6 +130,8 @@ exports.saveVisit = async (req, res) => {
 
     const salesmanId = req.user.id;
     const salesmanName = req.user.name;
+    const companyId = req.user.companyId;
+    const companyName = req.user.companyName || "";
 
     const shopRes = await ddb.send(
       new GetCommand({
@@ -141,37 +144,26 @@ exports.saveVisit = async (req, res) => {
     );
 
     const shop = shopRes.Item;
-
     const now = new Date().toISOString();
-
-    // 🔥 8 DAYS TTL
     const days = 8;
     const expireAt = Math.floor(Date.now() / 1000) + days * 24 * 60 * 60;
 
     const item = {
       pk: `VISIT#USER#${salesmanId}`,
       sk: `SHOP#${shop_id}#${now}`,
-
       visit_id: uuidv4(),
-
       salesmanId,
       salesmanName,
-
       shop_id,
       shop_name,
-
-      companyId: req.user.companyId,
-      companyName: req.user.companyName,
-
+      companyId,
+      companyName,
       segment: (shop?.segment || "").toLowerCase(),
-
       result: result || "matched",
       distance: distance || 0,
       status: "completed",
-
       createdAt: now,
-
-      expireAt, // ✅ TTL field
+      expireAt,
     };
 
     await ddb.send(
@@ -180,6 +172,37 @@ exports.saveVisit = async (req, res) => {
         Item: item,
       }),
     );
+
+    // ✅ AUTO CHECKIN - match visit மட்டும்
+    if (result === "match") {
+      try {
+        const todayIST = new Date().toLocaleDateString("en-CA", {
+          timeZone: "Asia/Kolkata",
+        });
+
+        // ✅ Already checkin இருக்கா - 1 DB call மட்டும்
+        const existing = await Attendance.get(salesmanId, todayIST);
+
+        if (!existing) {
+          await Attendance.checkIn({
+            uid: salesmanId,
+            userName: salesmanName,
+            companyId,
+            companyName,
+            date: todayIST,
+            lat: shop?.lat || 0,
+            lng: shop?.lng || 0,
+            distance: distance || 0,
+            locationId: `SHOP#${shop_id}`,
+            locationName: shop_name,
+          });
+
+          console.log(`✅ Auto checkin: ${salesmanName} at ${shop_name}`);
+        }
+      } catch (e) {
+        console.error("AUTO CHECKIN ERROR:", e);
+      }
+    }
 
     res.json({ success: true });
   } catch (e) {
