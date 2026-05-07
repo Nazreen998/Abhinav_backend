@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { getSalesOrders } = require("../zohoService");
+const { getSalesOrders } = require("../services/zohoService");
 
 // ✅ GET ALL SALES ORDERS
 router.get("/salesorders", async (req, res) => {
