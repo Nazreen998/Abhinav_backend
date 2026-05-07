@@ -11,6 +11,7 @@ const assignedRoutes = require("./routes/assignedRoutes");
 const nextShopRoutes = require("./routes/nextShopRoutes");
 const historyRoutes = require("./routes/historyRoutes");
 const visitRoutes = require("./routes/visitRoutes");
+const zohoRoutes = require("./routes/zohoRoutes");
 const pendingRoutes = require("./routes/pendingRoutes");
 const billRoutes = require("./routes/billRoutes");
 const attendanceRoutes = require("./routes/attendanceRoutes");
@@ -49,6 +50,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/api/users", userRoutes);
 app.use("/api/shops", shopRoutes);
 app.use("/api/assigned", assignedRoutes);
+app.use("/api/zoho", zohoRoutes);
 app.use("/api/nextshop", nextShopRoutes); // ✅ ONLY HERE
 app.use("/api/history", historyRoutes);
 app.use("/api/pending", pendingRoutes);
