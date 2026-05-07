@@ -8,6 +8,7 @@ const {
 const { QueryCommand } = require("@aws-sdk/lib-dynamodb");
 const { v4: uuidv4 } = require("uuid");
 const { getAccessToken, getShopSales } = require("../services/zohoService");
+const { Attendance } = require("../models/attendanceModel");
 
 const SHOP_TABLE = "abhinav_shops";
 const TABLE_NAME = "abhinav_visit_history";
@@ -125,10 +126,24 @@ exports.deleteVisit = async (req, res) => {
 // ============================
 exports.saveVisit = async (req, res) => {
   try {
-    const { shop_id, shop_name, result, distance, userLat, userLng, shopLat, shopLng } = req.body;
+    const { shop_id, shop_name, result, distance } = req.body;
 
     const salesmanId = req.user.id;
     const salesmanName = req.user.name;
+    const companyId = req.user.companyId;
+    const companyName = req.user.companyName || "";
+
+    const shopRes = await ddb.send(
+      new GetCommand({
+        TableName: SHOP_TABLE,
+        Key: {
+          pk: `SHOP#${shop_id}`,
+          sk: "PROFILE",
+        },
+      }),
+    );
+
+    const shop = shopRes.Item;
     const now = new Date().toISOString();
     const days = 8;
     const expireAt = Math.floor(Date.now() / 1000) + days * 24 * 60 * 60;
@@ -136,44 +151,131 @@ exports.saveVisit = async (req, res) => {
     const item = {
       pk: `VISIT#USER#${salesmanId}`,
       sk: `SHOP#${shop_id}#${now}`,
-
       visit_id: uuidv4(),
-
       salesmanId,
       salesmanName,
-
       shop_id,
       shop_name,
-
-      companyId: req.user.companyId,
-      companyName: req.user.companyName,
-
-      result: result || "mismatch",
+      companyId,
+      companyName,
+      segment: (shop?.segment || "").toLowerCase(),
+      result: result || "matched",
       distance: distance || 0,
-
-      // ✅ Location data
-      userLat: userLat || 0,
-      userLng: userLng || 0,
-      shopLat: shopLat || 0,
-      shopLng: shopLng || 0,
-
       status: "completed",
       createdAt: now,
       expireAt,
     };
 
-    await ddb.send(new PutCommand({
-      TableName: TABLE_NAME,
-      Item: item,
-    }));
+    await ddb.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: item,
+      }),
+    );
+
+    // ✅ MATCH VISIT - AUTO CHECKIN + YESTERDAY CHECKOUT
+    if (result === "match") {
+      try {
+        const todayIST = new Date().toLocaleDateString("en-CA", {
+          timeZone: "Asia/Kolkata",
+        });
+
+        // ✅ STEP 1: YESTERDAY AUTO CHECKOUT
+        const yesterdayDate = new Date();
+        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+        const yesterdayIST = yesterdayDate.toLocaleDateString("en-CA", {
+          timeZone: "Asia/Kolkata",
+        });
+
+        const yesterdayAttendance = await Attendance.get(
+          salesmanId,
+          yesterdayIST,
+        );
+
+        // ✅ Yesterday checkin இருக்கு but checkout இல்லன்னா
+        if (
+          yesterdayAttendance &&
+          yesterdayAttendance.status === "CHECKED_IN"
+        ) {
+          // ✅ Yesterday last visit fetch
+          const { QueryCommand } = require("@aws-sdk/lib-dynamodb");
+
+          const lastVisitRes = await ddb.send(
+            new QueryCommand({
+              TableName: TABLE_NAME,
+              KeyConditionExpression: "pk = :pk AND begins_with(sk, :sk)",
+              FilterExpression: "result = :r",
+              ExpressionAttributeValues: {
+                ":pk": `VISIT#USER#${salesmanId}`,
+                ":sk": "SHOP#",
+                ":r": "match",
+              },
+              ScanIndexForward: false, // ✅ Latest first
+              Limit: 20,
+            }),
+          );
+
+          const yesterdayVisits = (lastVisitRes.Items || []).filter((v) => {
+            const visitDate = new Date(v.createdAt).toLocaleDateString(
+              "en-CA",
+              {
+                timeZone: "Asia/Kolkata",
+              },
+            );
+            return visitDate === yesterdayIST;
+          });
+
+          if (yesterdayVisits.length > 0) {
+            // ✅ Yesterday last match visit
+            const lastVisit = yesterdayVisits[0];
+
+            await Attendance.checkOut({
+              uid: salesmanId,
+              date: yesterdayIST,
+              lat: lastVisit.lat || 0,
+              lng: lastVisit.lng || 0,
+              locationId: `SHOP#${lastVisit.shop_id}`,
+              locationName: lastVisit.shop_name,
+              distance: lastVisit.distance || 0,
+            });
+
+            console.log(
+              `✅ Auto checkout (yesterday): ${salesmanName} at ${lastVisit.shop_name} - ${lastVisit.createdAt}`,
+            );
+          }
+        }
+
+        // ✅ STEP 2: TODAY AUTO CHECKIN
+        const existing = await Attendance.get(salesmanId, todayIST);
+
+        if (!existing) {
+          await Attendance.checkIn({
+            uid: salesmanId,
+            userName: salesmanName,
+            companyId,
+            companyName,
+            date: todayIST,
+            lat: shop?.lat || 0,
+            lng: shop?.lng || 0,
+            distance: distance || 0,
+            locationId: `SHOP#${shop_id}`,
+            locationName: shop_name,
+          });
+
+          console.log(`✅ Auto checkin: ${salesmanName} at ${shop_name}`);
+        }
+      } catch (e) {
+        console.error("AUTO ATTENDANCE ERROR:", e);
+      }
+    }
 
     res.json({ success: true });
-
   } catch (e) {
     console.error("SAVE VISIT ERROR:", e);
     res.status(500).json({ success: false, error: e.message });
   }
 };
+
 // ============================
 // GET VISITS (COMPANY SAFE)
 // ============================

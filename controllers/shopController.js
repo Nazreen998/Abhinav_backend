@@ -37,8 +37,10 @@ exports.listShops = async (req, res) => {
 
     // 👷 SALESMAN → only own shops
     if (role === "salesman") {
-      filterExpression += " AND createdByUserId = :uid";
+      filterExpression +=
+        " AND (createdByUserId = :uid OR isCompanyWide = :true)";
       expressionValues[":uid"] = req.user.user_id || req.user.id;
+      expressionValues[":true"] = true;
     }
 
     // 🧑‍💼 MANAGER → segment wise
@@ -46,6 +48,7 @@ exports.listShops = async (req, res) => {
       filterExpression += " AND #segment = :segment AND #status = :approved";
       expressionValues[":segment"] = (req.user.segment || "").trim();
       expressionValues[":approved"] = "approved";
+
       expressionNames["#segment"] = "segment";
       expressionNames["#status"] = "status";
     }
@@ -55,12 +58,6 @@ exports.listShops = async (req, res) => {
       filterExpression += " AND #status = :approved";
       expressionValues[":approved"] = "approved";
       expressionNames["#status"] = "status";
-    }
-
-    // 🚗 DRIVER → only CSV imported shops
-    else if (role === "driver") {
-      filterExpression += " AND begins_with(pk, :prefix)";
-      expressionValues[":prefix"] = "SHOP#CMP";
     }
 
     // 🔍 Search support
