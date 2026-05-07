@@ -84,5 +84,37 @@ const getShopSales = async (shopName, accessToken, visitDate) => {
     return { matched: false, shop_name: shopName, error: err.message };
   }
 };
+const getSalesOrders = async () => {
+  try {
+    const accessToken = await getAccessToken();
 
-module.exports = { getAccessToken, getShopSales };
+    const response = await axios.get(
+      "https://www.zohoapis.in/books/v3/salesorders",
+      {
+        headers: {
+          Authorization: `Zoho-oauthtoken ${accessToken}`,
+        },
+        params: {
+          organization_id: process.env.ZOHO_ORG_ID,
+        },
+      }
+    );
+
+    return response.data.salesorders.map((order) => ({
+      salesorder_id: order.salesorder_id,
+      salesorder_number: order.salesorder_number,
+      customer_name: order.customer_name,
+      status: order.status,
+      date: order.date,
+      total: order.total,
+    }));
+  } catch (err) {
+    console.log(
+      "❌ SALES ORDER FETCH ERROR:",
+      err.response?.data || err.message
+    );
+
+    throw err;
+  }
+};
+module.exports = { getAccessToken, getShopSales, getSalesOrders};
