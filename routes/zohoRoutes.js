@@ -9,6 +9,66 @@ const { getSalesOrders } = require("../services/zohoService");
 // /api/zoho/salesorders?search=KS TRADERS
 // /api/zoho/salesorders?status=invoiced&search=BALAJI
 // /api/zoho/salesorders?page=2&limit=20
+const { ScanCommand } = require("@aws-sdk/lib-dynamodb");
+const ddb = require("../config/dynamo");
+const { getShopsOutstanding } = require("../services/zohoService");
+
+// ✅ GET OUTSTANDING FOR ALL DB SHOPS
+router.get("/shops-outstanding", async (req, res) => {
+  try {
+    // Step 1: DB-ல் எல்லா shops எடு
+    let items = [];
+    let lastKey = undefined;
+
+    do {
+      const result = await ddb.send(
+        new ScanCommand({
+          TableName: "abhinav_shops",
+          FilterExpression:
+            "sk = :profile AND (attribute_not_exists(isDeleted) OR isDeleted = :false)",
+          ExpressionAttributeValues: {
+            ":profile": "PROFILE",
+            ":false": false,
+          },
+          ExclusiveStartKey: lastKey,
+        })
+      );
+      items.push(...(result.Items || []));
+      lastKey = result.LastEvaluatedKey;
+    } while (lastKey);
+
+    if (items.length === 0) {
+      return res.json({ success: true, shops: [], summary: {} });
+    }
+
+    // Step 2: Zoho match + outstanding எடு
+    const shops = await getShopsOutstanding(items);
+
+    // Step 3: Summary calculate
+    const matched = shops.filter((s) => s.matched);
+    const totalBilled = matched.reduce((sum, s) => sum + s.total_billed, 0);
+    const totalOutstanding = matched.reduce((sum, s) => sum + s.outstanding, 0);
+
+    // Step 4: Sort by outstanding (high first)
+    shops.sort((a, b) => b.outstanding - a.outstanding);
+
+    res.json({
+      success: true,
+      summary: {
+        total_shops: shops.length,
+        matched_shops: matched.length,
+        unmatched_shops: shops.length - matched.length,
+        total_billed: totalBilled,
+        total_outstanding: totalOutstanding,
+      },
+      shops,
+    });
+
+  } catch (err) {
+    console.error("❌ SHOPS OUTSTANDING ERROR:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 router.get("/salesorders", async (req, res) => {
   try {

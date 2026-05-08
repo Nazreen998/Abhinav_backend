@@ -157,5 +157,87 @@ const getSalesOrders = async () => {
     throw err;
   }
 };
+// ── Get Outstanding for ALL shops ──────────────────────────
+const getShopsOutstanding = async (shops) => {
+  const accessToken = await getAccessToken();
 
-module.exports = { getAccessToken, getShopSales, getSalesOrders };
+  const results = [];
+
+  for (const shop of shops) {
+    const shopName = shop.shop_name;
+    if (!shopName) continue;
+
+    try {
+      // Step 1: Contact match
+      const customerRes = await axios.get(
+        "https://www.zohoapis.in/books/v3/contacts",
+        {
+          headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+          params: {
+            organization_id: process.env.ZOHO_ORG_ID,
+            contact_name_contains: shopName,
+          },
+        }
+      );
+
+      const customers = customerRes.data.contacts || [];
+
+      if (customers.length === 0) {
+        results.push({
+          shop_id: shop.shop_id,
+          shop_name: shopName,
+          matched: false,
+          zoho_name: null,
+          total_billed: 0,
+          outstanding: 0,
+          invoice_count: 0,
+        });
+        continue;
+      }
+
+      const customer = customers[0];
+
+      // Step 2: Get invoices
+      const invoiceRes = await axios.get(
+        "https://www.zohoapis.in/books/v3/invoices",
+        {
+          headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+          params: {
+            organization_id: process.env.ZOHO_ORG_ID,
+            customer_id: customer.contact_id,
+          },
+        }
+      );
+
+      const invoices = invoiceRes.data.invoices || [];
+
+      const totalBilled = invoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
+      const outstanding = invoices.reduce((sum, inv) => sum + (inv.balance || 0), 0);
+
+      results.push({
+        shop_id: shop.shop_id,
+        shop_name: shopName,
+        matched: true,
+        zoho_name: customer.contact_name,
+        total_billed: totalBilled,
+        outstanding: outstanding,
+        invoice_count: invoices.length,
+      });
+
+    } catch (err) {
+      results.push({
+        shop_id: shop.shop_id,
+        shop_name: shopName,
+        matched: false,
+        error: err.message,
+        total_billed: 0,
+        outstanding: 0,
+        invoice_count: 0,
+      });
+    }
+  }
+
+  return results;
+};
+
+module.exports = { getAccessToken, getShopSales, getSalesOrders, getShopsOutstanding };
