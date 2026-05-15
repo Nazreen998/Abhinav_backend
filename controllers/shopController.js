@@ -110,6 +110,8 @@ exports.addShop = async (req, res) => {
       primaryPhone,
       secondaryPhone,
       shopType,
+      gstType,
+      gstNumber,
     } = req.body;
 
     if (!primaryPhone) {
@@ -137,6 +139,9 @@ exports.addShop = async (req, res) => {
       primaryPhone: primaryPhone || "",
       secondaryPhone: secondaryPhone || "",
       shopType: shopType || "office",
+
+      gstType: gstType || "non_gst",
+      gstNumber: gstNumber || "",
 
       status: "pending",
       isDeleted: false,
@@ -602,10 +607,27 @@ exports.approveShop = async (req, res) => {
 exports.updateShop = async (req, res) => {
   try {
     const shopId = req.params.id;
-    const { shop_name, address, segment, lat, lng } = req.body;
+    const {
+      shop_name,
+      address,
+      segment,
+      lat,
+      lng,
+      gstNumber,
+      primaryPhone,
+      secondaryPhone,
+    } = req.body;
+
+    if (!primaryPhone) {
+      return res.status(400).json({
+        success: false,
+        message: "Primary phone number is required",
+      });
+    }
 
     let updateExp =
-      "SET shop_name = :shop_name, address = :address, #seg = :segment";
+      "SET shop_name = :shop_name, address = :address, #seg = :segment, " +
+      "primaryPhone = :primaryPhone, secondaryPhone = :secondaryPhone, gstNumber = :gstNumber";
 
     const attrNames = { "#seg": "segment" };
 
@@ -613,9 +635,12 @@ exports.updateShop = async (req, res) => {
       ":shop_name": shop_name,
       ":address": address,
       ":segment": segment,
+      ":primaryPhone": primaryPhone || "",
+      ":secondaryPhone": secondaryPhone || "",
+      ":gstNumber": gstNumber || "",
     };
 
-    // ✅ Only update lat/lng if provided
+    // Only update lat/lng if provided
     if (lat !== undefined && lng !== undefined) {
       updateExp += ", lat = :lat, lng = :lng";
       attrValues[":lat"] = Number(lat);
