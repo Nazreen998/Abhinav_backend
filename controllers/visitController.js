@@ -280,19 +280,16 @@ exports.saveVisit = async (req, res) => {
 // GET VISITS (COMPANY SAFE)
 // ============================
 
+// getVisits — reads from DynamoDB cache instead of calling Zoho
+
 exports.getVisits = async (req, res) => {
   try {
     const role = (req.user.role || "").toLowerCase();
 
     let filterExpression =
       "#companyId = :cid AND (attribute_not_exists(isDeleted) OR isDeleted = :false)";
-
     let expressionNames = { "#companyId": "companyId" };
-
-    let expressionValues = {
-      ":cid": req.user.companyId,
-      ":false": false,
-    };
+    let expressionValues = { ":cid": req.user.companyId, ":false": false };
 
     if (role === "salesman") {
       filterExpression += " AND salesmanId = :uid";
@@ -318,36 +315,34 @@ exports.getVisits = async (req, res) => {
 
     const visits = result.Items || [];
 
+    // ✅ Read from cache — no Zoho API call
     let zoho_sales = [];
     if (role !== "driver" && visits.length > 0) {
-      const {
-        getAccessToken,
-        getShopSales,
-      } = require("../services/zohoService");
-      const accessToken = await getAccessToken();
+      const { getZohoCacheForShop } = require("../helpers/readZohoCache");
 
       zoho_sales = (
         await Promise.all(
           visits.map(async (visit) => {
-            const shopName =
-              visit.shop_name ||
-              visit.shopName ||
-              visit.customerName ||
-              visit.name;
-
-            // ✅ GST number from visit (which comes from shop record)
             const gstNumber = visit.gstNumber || visit.gst_number || "";
+            const shopId = visit.shop_id || visit.shopId || "";
+            const shopName = visit.shop_name || visit.shopName || "";
 
-            if (!shopName && !gstNumber) return null;
+            const cache = await getZohoCacheForShop(gstNumber, shopId);
 
-            const sales = await getShopSales(
+            if (!cache) return null;
+
+            return {
               shopName,
-              accessToken,
-              visit.createdAt,
-              gstNumber, // ✅ pass gstNumber as 4th arg
-            );
-
-            return { shopName, gstNumber, sales };
+              gstNumber,
+              matched: cache.matched,
+              match_type: cache.match_type || null,
+              zoho_name: cache.zoho_name || null,
+              total_billed: cache.total_billed || 0,
+              outstanding: cache.outstanding || 0,
+              invoice_count: cache.invoice_count || 0,
+              invoices: cache.invoices || [],
+              cached_at: cache.cached_at,
+            };
           }),
         )
       ).filter(Boolean);
