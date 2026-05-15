@@ -287,22 +287,18 @@ exports.getVisits = async (req, res) => {
     let filterExpression =
       "#companyId = :cid AND (attribute_not_exists(isDeleted) OR isDeleted = :false)";
 
-    let expressionNames = {
-      "#companyId": "companyId",
-    };
+    let expressionNames = { "#companyId": "companyId" };
 
     let expressionValues = {
       ":cid": req.user.companyId,
       ":false": false,
     };
 
-    // 🔹 Salesman → only own visits
     if (role === "salesman") {
       filterExpression += " AND salesmanId = :uid";
       expressionValues[":uid"] = req.user.id;
     }
 
-    // 🔹 Manager → segment wise
     if (role === "manager") {
       filterExpression += " AND #segment = :segment";
       expressionNames["#segment"] = "segment";
@@ -320,51 +316,46 @@ exports.getVisits = async (req, res) => {
       }),
     );
 
-    // ✅ ZOHO SALES - Added below (nothing above changed)
     const visits = result.Items || [];
-    const todayVisits = visits;
 
     let zoho_sales = [];
-    if (role !== "driver" && todayVisits.length > 0) {
+    if (role !== "driver" && visits.length > 0) {
       const {
         getAccessToken,
         getShopSales,
       } = require("../services/zohoService");
       const accessToken = await getAccessToken();
-      // ✅ visit-ஓட createdAt date-ஐ from_date-ஆ pass பண்ணு
+
       zoho_sales = (
         await Promise.all(
-          todayVisits.map(async (visit) => {
+          visits.map(async (visit) => {
             const shopName =
               visit.shop_name ||
               visit.shopName ||
               visit.customerName ||
               visit.name;
-            if (!shopName) return null;
+
+            // ✅ GST number from visit (which comes from shop record)
+            const gstNumber = visit.gstNumber || visit.gst_number || "";
+
+            if (!shopName && !gstNumber) return null;
+
             const sales = await getShopSales(
               shopName,
               accessToken,
               visit.createdAt,
-            ); // ← createdAt pass பண்ணு
-            return {
-              shopName,
-              sales,
-            };
+              gstNumber, // ✅ pass gstNumber as 4th arg
+            );
+
+            return { shopName, gstNumber, sales };
           }),
         )
       ).filter(Boolean);
     }
 
-    res.json({
-      success: true,
-      visits,
-      zoho_sales,
-    });
+    res.json({ success: true, visits, zoho_sales });
   } catch (e) {
     console.error("GET VISITS ERROR:", e);
-    res.status(500).json({
-      success: false,
-      error: e.message,
-    });
+    res.status(500).json({ success: false, error: e.message });
   }
 };
