@@ -13,7 +13,7 @@ const historyRoutes = require("./routes/historyRoutes");
 const visitRoutes = require("./routes/visitRoutes");
 const zohoRoutes = require("./routes/zohoRoutes");
 const pendingRoutes = require("./routes/pendingRoutes");
-const billRoutes = require("./routes/billRoutes");
+
 const attendanceRoutes = require("./routes/attendanceRoutes");
 const locationRoutes = require("./routes/locationRoutes");
 
@@ -55,7 +55,7 @@ app.use("/api/nextshop", nextShopRoutes); // ✅ ONLY HERE
 app.use("/api/history", historyRoutes);
 app.use("/api/pending", pendingRoutes);
 app.use("/api/visits", visitRoutes);
-app.use("/api/bills", billRoutes);
+
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/locations", locationRoutes);
 
