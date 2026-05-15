@@ -320,28 +320,31 @@ exports.getVisits = async (req, res) => {
     if (role !== "driver" && visits.length > 0) {
       const { getZohoCacheForShop } = require("../helpers/readZohoCache");
 
+      // getVisits.js - இந்த part மட்டும் மாத்து
       zoho_sales = (
         await Promise.all(
           visits.map(async (visit) => {
-            const gstNumber = visit.gstNumber || visit.gst_number || "";
-            const shopId = visit.shop_id || visit.shopId || "";
+            const gstNumber = (
+              visit.gstNumber ||
+              visit.gst_number ||
+              ""
+            ).trim();
             const shopName = visit.shop_name || visit.shopName || "";
 
-            const cache = await getZohoCacheForShop(gstNumber, shopId);
+            // ✅ GST இல்லாட்டி skip — shopId வச்சு தேடவே வேண்டாம்
+            if (!gstNumber) return null;
 
+            const cache = await getZohoCacheForShop(gstNumber, null);
             if (!cache) return null;
 
             return {
               shopName,
               gstNumber,
-              matched: cache.matched,
-              match_type: cache.match_type || null,
-              zoho_name: cache.zoho_name || null,
-              total_billed: cache.total_billed || 0,
-              outstanding: cache.outstanding || 0,
-              invoice_count: cache.invoice_count || 0,
-              invoices: cache.invoices || [],
-              cached_at: cache.cached_at,
+              sales: {
+                total_sales: cache.total_billed || 0,
+                invoice_count: cache.invoice_count || 0,
+                invoices: cache.invoices || [],
+              },
             };
           }),
         )
