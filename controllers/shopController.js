@@ -728,3 +728,45 @@ exports.updateShopImage = async (req, res) => {
     });
   }
 };
+
+// GST Lookup - fetch shop details by GST number
+exports.getShopByGst = async (req, res) => {
+  try {
+    const { gstNumber } = req.params;
+
+    if (!gstNumber || gstNumber.trim().length < 15) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid GST number",
+      });
+    }
+
+    const shop = await Shop.findOne({
+      gstNumber: gstNumber.trim().toUpperCase(),
+    }).select("shop_name address primaryPhone secondaryPhone gstNumber");
+
+    if (!shop) {
+      return res.status(404).json({
+        success: false,
+        message: "No shop found with this GST number",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        shop_name: shop.shop_name,
+        address: shop.address,
+        primaryPhone: shop.primaryPhone,
+        secondaryPhone: shop.secondaryPhone,
+        gstNumber: shop.gstNumber,
+      },
+    });
+  } catch (e) {
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: e.message,
+    });
+  }
+};

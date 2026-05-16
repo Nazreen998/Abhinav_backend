@@ -8,8 +8,7 @@ const { sql, connectSQL } = require("./config/db-sql");
 // ROUTES
 const userRoutes = require("./routes/userRoutes");
 const shopRoutes = require("./routes/shopRoutes");
-const assignedRoutes = require("./routes/assignedRoutes");
-const nextShopRoutes = require("./routes/nextShopRoutes");
+
 const historyRoutes = require("./routes/historyRoutes");
 const visitRoutes = require("./routes/visitRoutes");
 const zohoRoutes = require("./routes/zohoRoutes");
@@ -50,18 +49,15 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 // =======================
 app.use("/api/users", userRoutes);
 app.use("/api/shops", shopRoutes);
-app.use("/api/assigned", assignedRoutes);
+
 app.use("/api/zoho", zohoRoutes);
-app.use("/api/nextshop", nextShopRoutes); // ✅ ONLY HERE
+
 app.use("/api/history", historyRoutes);
 app.use("/api/pending", pendingRoutes);
 app.use("/api/visits", visitRoutes);
 
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/locations", locationRoutes);
-
-// ❌ DO NOT mount nextShopRoutes again
-app.use("/api/assign", nextShopRoutes);
 
 // =======================
 // DEFAULT ROUTE

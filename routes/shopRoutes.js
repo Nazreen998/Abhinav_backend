@@ -99,4 +99,10 @@ router.post(
   auth(["salesman", "manager"]),
   shopController.addCallLogByPhone,
 );
+
+router.get(
+  "/gst-lookup/:gstNumber",
+  auth(["master", "manager", "salesman"]),
+  shopController.getShopByGst,
+);
 module.exports = router;
