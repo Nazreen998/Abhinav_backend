@@ -73,6 +73,13 @@ router.put(
   auth(["salesman"]), // 🔥 only salesman
   shopController.updateShopImage,
 );
+
+router.get(
+  "/gst-lookup/:gstNumber",
+  auth(["master", "manager", "salesman"]),
+  shopController.getShopByGst,
+);
+
 // ==============================
 // ADD CALL LOG (TEST PURPOSE)
 // ==============================
@@ -100,9 +107,4 @@ router.post(
   shopController.addCallLogByPhone,
 );
 
-router.get(
-  "/gst-lookup/:gstNumber",
-  auth(["master", "manager", "salesman"]),
-  shopController.getShopByGst,
-);
 module.exports = router;

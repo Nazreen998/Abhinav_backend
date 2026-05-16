@@ -741,16 +741,31 @@ exports.getShopByGst = async (req, res) => {
       });
     }
 
-    const shop = await Shop.findOne({
-      gstNumber: gstNumber.trim().toUpperCase(),
-    }).select("shop_name address primaryPhone secondaryPhone gstNumber");
+    // ✅ DynamoDB Scan (same pattern as rest of your controller)
+    const result = await ddb.send(
+      new ScanCommand({
+        TableName: SHOP_TABLE,
+        FilterExpression:
+          "sk = :profile AND gstNumber = :gst AND #companyId = :cid",
+        ExpressionAttributeNames: {
+          "#companyId": "companyId",
+        },
+        ExpressionAttributeValues: {
+          ":profile": "PROFILE",
+          ":gst": gstNumber.trim().toUpperCase(),
+          ":cid": req.user.companyId,
+        },
+      }),
+    );
 
-    if (!shop) {
+    if (!result.Items || result.Items.length === 0) {
       return res.status(404).json({
         success: false,
         message: "No shop found with this GST number",
       });
     }
+
+    const shop = result.Items[0];
 
     return res.status(200).json({
       success: true,
